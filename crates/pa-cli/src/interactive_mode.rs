@@ -22,12 +22,6 @@ mod daemon;
 
 pub use daemon::{ensure_daemon_running, ensure_daemon_running_with};
 
-mod onboarding;
-
-use onboarding::onboarding_task;
-#[cfg(test)]
-use onboarding::{SettingsOnboardingSink, StartupModelProbe};
-
 mod telemetry;
 
 use telemetry::CliInteractionTelemetry;
@@ -39,7 +33,7 @@ mod tests;
 pub fn run_interactive_mode(options: &RunOptions) -> Result<i32> {
     let socket_path = resolve_socket_path(options.daemon_socket.as_deref());
     let configuration_load_started = std::time::Instant::now();
-    let (tui_options, pending_onboarding_stages) = build_tui_options(
+    let tui_options = build_tui_options(
         options,
         socket_path,
         std::sync::Arc::new(std::sync::Mutex::new(
@@ -72,20 +66,6 @@ pub fn run_interactive_mode(options: &RunOptions) -> Result<i32> {
                 pa_core::settings::SettingsManager::create(&options.config.cwd, &agent_dir);
             pa_core::session_engine::telemetry::build_client(&settings, &agent_dir)
         });
-        // The onboarding `entry`/`ready` stages defer to here: an inert client
-        // before the runtime exists would drop the events.
-        if !pending_onboarding_stages.is_empty() {
-            let agent_dir = options.config.agent_dir.clone();
-            let settings =
-                pa_core::settings::SettingsManager::create(&options.config.cwd, &agent_dir);
-            if !crate::mode::telemetry_disabled(&settings) {
-                let client =
-                    pa_core::session_engine::telemetry::build_client(&settings, &agent_dir);
-                for stage in &pending_onboarding_stages {
-                    stage.track(&client);
-                }
-            }
-        }
         if let Some(client) = startup_telemetry.as_ref() {
             pa_telemetry::AgentStartupStage {
                 stage: "configuration_load",
@@ -410,7 +390,7 @@ fn build_tui_options(
     options: &RunOptions,
     socket_path: PathBuf,
     prompt_stash: std::sync::Arc<std::sync::Mutex<pa_tui::prompt_stash::PromptStashStore>>,
-) -> Result<(InteractiveOptions, Vec<pa_telemetry::OnboardingStage>)> {
+) -> Result<InteractiveOptions> {
     let config = &options.config;
     let session_dir = options
         .session
@@ -476,8 +456,6 @@ fn build_tui_options(
     let provider_auth = pa_tui::provider_auth::ProviderAuthCommandsHandle(std::sync::Arc::new(
         crate::provider_login::ProviderAuth::new(config.cwd.clone(), config.agent_dir.clone()),
     ));
-    let (onboarding, pending_onboarding_stages) =
-        onboarding_task(options, Some(provider_auth.clone()));
     let tui_options_value = InteractiveOptions {
         code_block_indent,
         tree_filter_mode,
@@ -515,7 +493,9 @@ fn build_tui_options(
             config.agent_dir.clone(),
         )),
         version: crate::config::version().to_string(),
-        onboarding,
+        // No first-run setup: the TUI opens straight into the session. A model
+        // is configured with `/login` or a provider API key env var.
+        onboarding: None,
         telemetry_disabled: crate::mode::create_telemetry_disabled(config),
         // `/mcp login` / `/mcp logout`: the client-side auth flows run in
         // this process (the TS interactive client's placement) and persist
@@ -549,7 +529,7 @@ fn build_tui_options(
         session_has_children: false,
         restore_dock_focus: false,
     };
-    Ok((tui_options_value, pending_onboarding_stages))
+    Ok(tui_options_value)
 }
 
 /// Map the CLI session flags onto the TUI session selection: explicit `--resume`

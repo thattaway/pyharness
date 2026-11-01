@@ -4,7 +4,6 @@
 use super::*;
 // The tests call the trait methods directly (the impl header alone
 // does not import them).
-use pa_tui::interactive::OnboardingSink;
 use serde_json::Map;
 
 #[test]
@@ -209,256 +208,6 @@ fn continue_recent_view_gates_on_onboarding_and_the_flag() {
 }
 
 #[test]
-fn onboarding_gate_follows_settings_and_auth() {
-    use crate::mode::{AppMode, RuntimeConfig};
-
-    fn run_options(dir: &std::path::Path) -> RunOptions {
-        RunOptions {
-            app_mode: AppMode::Interactive,
-            config: RuntimeConfig {
-                cwd: dir.to_path_buf(),
-                agent_dir: dir.join("agent"),
-                ..Default::default()
-            },
-            session: crate::mode::SessionOptions::default(),
-            messages: Vec::new(),
-            file_args: Vec::new(),
-            daemon_socket: None,
-            list_models: None,
-            initial_message: None,
-            initial_images: Vec::new(),
-            verbose: false,
-            offline: false,
-            agents_view_requested: false,
-            attach_agent: None,
-        }
-    }
-
-    let dir = tempfile::TempDir::new().expect("temp dir");
-    let agent = dir.path().join("agent");
-    std::fs::create_dir_all(&agent).expect("agent dir");
-
-    let mut settings = pa_core::settings::SettingsManager::create(dir.path(), &agent);
-    settings.set_onboarding_shown(true).expect("set flag");
-    let options = run_options(dir.path());
-    assert!(onboarding_task(&options, None).0.is_none());
-
-    settings.set_onboarding_shown(false).expect("reset flag");
-
-    // Flagless launch: a models.json provider key + saved default model resolve the
-    // startup model, so the onboarding task mounts; a fresh home completes silently.
-    std::fs::write(
-        agent.join("models.json"),
-        r#"{ "providers": {
-                "onboard-test": {
-                    "baseUrl": "https://onboard.test", "apiKey": "sk-onboard",
-                    "api": "openai-completions",
-                    "models": [ { "id": "m1", "name": "M1" } ]
-                },
-                "onboard-naked": {
-                    "baseUrl": "https://naked.test",
-                    // Present (custom models require "apiKey", same as TS)
-                    // but the `!command` resolves to no credential, so the
-                    // provider stays unauthorized.
-                    "apiKey": "!exit 1",
-                    "api": "openai-completions",
-                    "models": [ { "id": "m2", "name": "M2" } ]
-                }
-            } }"#,
-    )
-    .expect("models.json");
-    let mut settings = pa_core::settings::SettingsManager::create(dir.path(), &agent);
-    settings
-        .set_default_model_and_provider("onboard-test", "m1")
-        .expect("saved default");
-    let options = run_options(dir.path());
-    let task = onboarding_task(&options, None)
-        .0
-        .expect("the ready home mounts the flow");
-    assert!(
-        (task.model_ready)(),
-        "the configured default model is ready (the question flow)"
-    );
-
-    // Explicit flags that resolve to a provider without configured auth mount the
-    // task too — the full sign-in flow, not the question.
-    let mut options = run_options(dir.path());
-    options.config.provider = Some("onboard-naked".into());
-    options.config.model = Some("m2".into());
-    let task = onboarding_task(&options, None)
-        .0
-        .expect("the flag alone mounts the flow");
-    assert!(
-        !(task.model_ready)(),
-        "the naked provider leaves the model not ready (the full flow)"
-    );
-    assert!(
-        task.current_model
-            .as_ref()
-            .is_some_and(|model| model.id == "m2"),
-        "the resolved startup model rides the task (TS getCurrentModel)"
-    );
-}
-
-#[test]
-fn settings_sink_completes_a_provisioned_home_without_touching_the_choice() {
-    let dir = tempfile::TempDir::new().expect("temp dir");
-    let agent_dir = dir.path().join("agent");
-    std::fs::create_dir_all(&agent_dir).expect("agent dir");
-    // The provisioned home: sharing opted out, telemetry off (no
-    // telemetry client for the completion event).
-    let mut provisioned = pa_core::settings::SettingsManager::create(dir.path(), &agent_dir);
-    provisioned
-        .set_agent_traces_enabled(false)
-        .expect("provision the opt-out");
-    provisioned
-        .set_telemetry_enabled(false)
-        .expect("telemetry off");
-
-    let sink = SettingsOnboardingSink {
-        cwd: dir.path().to_path_buf(),
-        agent_dir: agent_dir.clone(),
-        created_at: std::time::Instant::now(),
-        onboarding_id: uuid::Uuid::new_v4().to_string(),
-        ready_emitted: std::sync::atomic::AtomicBool::new(false),
-        completion_reported: std::sync::atomic::AtomicBool::new(false),
-        probe: StartupModelProbe {
-            cwd: dir.path().to_path_buf(),
-            agent_dir: agent_dir.clone(),
-            cli_provider: None,
-            cli_model: None,
-            models: None,
-            is_continuing: false,
-            api_key: None,
-        },
-    };
-    assert!(
-        !sink.onboarding_shown(),
-        "the never-completed home reads its missing flag through a fresh manager"
-    );
-    assert!(
-        sink.agent_traces_choice_written(),
-        "the provisioned opt-out reads through a fresh manager"
-    );
-    sink.mark_onboarding_complete().expect("silent completion");
-
-    // The next launch reads through its own fresh manager: the gate
-    // never mounts the task again.
-    let settings = pa_core::settings::SettingsManager::create(dir.path(), &agent_dir);
-    assert!(settings.get_onboarding_shown(), "the flag persisted");
-    assert!(
-        !settings.get_agent_traces_enabled(),
-        "the standing opt-out survived the silent completion"
-    );
-}
-
-/// A flow that ran but did not complete reports `onboarding completed`
-/// with the `aborted` outcome (TS `runStartupOnboarding`'s `finally`), and
-/// a completed flow never reports a second, aborted outcome. Telemetry is
-/// on for this test (the repo's `cargo test` env opts out).
-#[test]
-fn settings_sink_reports_an_aborted_flow_once() {
-    crate::mode::tests::with_clean_telemetry_env(|| {
-        tokio::runtime::Runtime::new()
-            .unwrap()
-            .block_on(report_an_aborted_flow_once());
-    });
-}
-
-async fn report_an_aborted_flow_once() {
-    let dir = tempfile::TempDir::new().expect("temp dir");
-    let agent_dir = dir.path().join("agent");
-    std::fs::create_dir_all(&agent_dir).expect("agent dir");
-    let sink = SettingsOnboardingSink {
-        cwd: dir.path().to_path_buf(),
-        agent_dir: agent_dir.clone(),
-        created_at: std::time::Instant::now(),
-        onboarding_id: uuid::Uuid::new_v4().to_string(),
-        ready_emitted: std::sync::atomic::AtomicBool::new(false),
-        completion_reported: std::sync::atomic::AtomicBool::new(false),
-        probe: StartupModelProbe {
-            cwd: dir.path().to_path_buf(),
-            agent_dir: agent_dir.clone(),
-            cli_provider: None,
-            cli_model: None,
-            models: None,
-            is_continuing: false,
-            api_key: None,
-        },
-    };
-    // The sink's own report resolves only once the event is delivered.
-    pa_tui::interactive::OnboardingSink::onboarding_incomplete(&sink, "aborted").await;
-    let mirror = std::fs::read_to_string(agent_dir.join("telemetry.jsonl")).unwrap();
-    let lines: Vec<&str> = mirror.lines().collect();
-    assert_eq!(lines.len(), 1);
-    let event: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
-    assert_eq!(event["name"], "onboarding completed");
-    assert_eq!(event["properties"]["outcome"], "aborted");
-    assert_eq!(event["properties"]["execution_mode"], "interactive");
-
-    sink.completion_reported
-        .store(true, std::sync::atomic::Ordering::SeqCst);
-    assert!(
-        sink.track_incomplete("aborted").is_none(),
-        "a reported completion never adds an aborted outcome"
-    );
-}
-
-/// A fresh home (no choice written) is the one home the question still
-/// mounts for — the opt-in moment: the flow's `Share` answer persists
-/// beside the completion flag, and both read back through the next
-/// launch's fresh manager.
-#[test]
-fn settings_sink_persists_the_fresh_home_answer_with_the_flag() {
-    let dir = tempfile::TempDir::new().expect("temp dir");
-    let agent_dir = dir.path().join("agent");
-    std::fs::create_dir_all(&agent_dir).expect("agent dir");
-    let mut provisioned = pa_core::settings::SettingsManager::create(dir.path(), &agent_dir);
-    provisioned
-        .set_telemetry_enabled(false)
-        .expect("telemetry off");
-
-    let sink = SettingsOnboardingSink {
-        cwd: dir.path().to_path_buf(),
-        agent_dir: agent_dir.clone(),
-        created_at: std::time::Instant::now(),
-        onboarding_id: uuid::Uuid::new_v4().to_string(),
-        ready_emitted: std::sync::atomic::AtomicBool::new(false),
-        completion_reported: std::sync::atomic::AtomicBool::new(false),
-        probe: StartupModelProbe {
-            cwd: dir.path().to_path_buf(),
-            agent_dir: agent_dir.clone(),
-            cli_provider: None,
-            cli_model: None,
-            models: None,
-            is_continuing: false,
-            api_key: None,
-        },
-    };
-    assert!(
-        !sink.onboarding_shown(),
-        "a fresh home has no completion flag yet"
-    );
-    assert!(
-        !sink.agent_traces_choice_written(),
-        "a fresh home carries no trace choice (sharing stays off until a choice is made)"
-    );
-    sink.set_agent_traces_enabled(true).expect("answer Share");
-    sink.mark_onboarding_complete()
-        .expect("complete onboarding");
-
-    let settings = pa_core::settings::SettingsManager::create(dir.path(), &agent_dir);
-    assert!(
-        settings.get_onboarding_shown(),
-        "the flow marked onboarding shown"
-    );
-    assert!(
-        settings.get_agent_traces_enabled(),
-        "the Share answer persisted with the flag"
-    );
-}
-
-#[test]
 fn build_tui_options_reads_code_block_indent_settings() {
     // `markdown.codeBlockIndent` rides InteractiveOptions at startup; a non-default
     // value reaches the TUI, no setting keeps the default two spaces.
@@ -492,7 +241,7 @@ fn build_tui_options_reads_code_block_indent_settings() {
         r#"{ "markdown": { "codeBlockIndent": "    " } }"#,
     )
     .expect("settings.json");
-    let (options, _) = build_tui_options(
+    let options = build_tui_options(
         &run_options(dir.path()),
         dir.path().join("d.sock"),
         std::sync::Arc::default(),
@@ -502,7 +251,7 @@ fn build_tui_options_reads_code_block_indent_settings() {
 
     let bare = tempfile::TempDir::new().expect("temp dir");
     std::fs::create_dir_all(bare.path().join("agent")).expect("agent dir");
-    let (options, _) = build_tui_options(
+    let options = build_tui_options(
         &run_options(bare.path()),
         bare.path().join("d.sock"),
         std::sync::Arc::default(),
@@ -810,7 +559,7 @@ fn build_tui_options_opens_a_fork_as_the_startup_session() {
     options.config.agent_dir = dir.path().join("agent");
     options.session.fork = Some(id);
     options.session.session_dir = Some(session_dir.clone());
-    let (tui, _) = build_tui_options(
+    let tui = build_tui_options(
         &options,
         dir.path().join("d.sock"),
         std::sync::Arc::default(),
@@ -1068,7 +817,7 @@ fn interactive_resume_restores_saved_cwd_and_project_settings_unless_overridden(
     for explicit in [true, false] {
         options.session.resume = Some(saved.to_string_lossy().into_owned());
         options.session.cwd_from_flag = explicit;
-        let (tui, _) = build_tui_options(
+        let tui = build_tui_options(
             &options,
             dir.path().join("d.sock"),
             std::sync::Arc::default(),

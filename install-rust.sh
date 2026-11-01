@@ -158,7 +158,9 @@ set -eu
 # vars.R2_PUBLIC_BASE_URL, and to <base>/install-beta.sh with the channel
 # default set to beta — the repo-file default IS the official domain, so
 # the raw repo copy installs out of the box too.
-DOWNLOAD_BASE_URL_DEFAULT="https://pub-728493de92a943e2a9b2d17b4719f318.r2.dev"
+# No release server is built in: a channel install needs
+# PRIME_AGENT_DOWNLOAD_BASE_URL (or a publish-rendered default).
+DOWNLOAD_BASE_URL_DEFAULT=""
 RELEASE_CHANNEL_DEFAULT="stable"
 BASE_URL="${PRIME_AGENT_DOWNLOAD_BASE_URL:-$DOWNLOAD_BASE_URL_DEFAULT}"
 CHANNEL="${PRIME_AGENT_RELEASE_CHANNEL:-$RELEASE_CHANNEL_DEFAULT}"
@@ -850,6 +852,7 @@ esac
 # The local modes (--rollback, --archive) download nothing, so the rule
 # guards the channel install only.
 if [ "$MODE" = channel ]; then
+[ -n "$BASE_URL" ] || die "no release server is configured: set PRIME_AGENT_DOWNLOAD_BASE_URL to your release server, or build from source"
 case "$BASE_URL" in
   https://*) ;;
   *)

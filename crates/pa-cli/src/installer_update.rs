@@ -1,13 +1,10 @@
-//! The `prime-agent update` body: the TS->Rust migration path. One step —
-//! the update fetches the update channel's installer (stable: the official
-//! domain's `https://app.primeintellect.ai/prime-agent/install.sh`;
-//! nightly: the download base's `install-beta.sh`; never a GitHub raw or
-//! workflow URL) and runs it; the script uninstalls the
-//! TypeScript version, installs the latest Rust build of the update
-//! channel, and never touches `~/.prime/agent` (the sessions and
-//! configuration). The TUI's `/update` runs the same core out-of-band
-//! (`client_update.rs`); both consult pa-core's Homebrew detector before
-//! entering the installer funnel.
+//! The `prime-agent update` body: the update fetches the update channel's
+//! installer from the configured release server (stable: `install.sh`,
+//! nightly: `install-beta.sh` under the download base, or a pinned script
+//! URL) and runs it. With no release server configured it refuses. The
+//! TUI's `/update` runs the same core out-of-band (`client_update.rs`);
+//! both consult pa-core's Homebrew detector before entering the installer
+//! funnel.
 
 use pa_core::update::homebrew;
 use pa_core::update::install::current_platform_alias;
@@ -143,10 +140,11 @@ pub fn run(options: &UpdateOptions) -> i32 {
     // fetches from, and the banner must not claim a source the run will
     // not use.
     let channel = requested_installer_channel(options.channel);
-    println!(
-        "Updating to the latest Rust build — fetching the installer from {}:",
-        installer::installer_script_url(Some(channel))
-    );
+    let Some(installer_url) = installer::installer_script_url(Some(channel)) else {
+        eprintln!("Error: {}", installer::NO_RELEASE_SOURCE);
+        return 1;
+    };
+    println!("Updating to the latest Rust build — fetching the installer from {installer_url}:");
     match runtime.block_on(installer::run_installer(
         Some(channel),
         InstallerOutput::Inherit,
@@ -262,7 +260,10 @@ async fn run_check(flag: Option<UpdateChannel>) -> i32 {
     };
     let running = crate::config::version();
     let channel = update_channel(flag);
-    let base = installer::download_base_url();
+    let Some(base) = installer::download_base_url() else {
+        eprintln!("Error: {}", installer::NO_RELEASE_SOURCE);
+        return 1;
+    };
     println!("Platform: {target}");
     println!("Running:  {running}");
     println!("Channel:  {}", channel.wire_name());

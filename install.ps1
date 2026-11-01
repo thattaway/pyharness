@@ -62,7 +62,8 @@ $ErrorActionPreference = 'Stop'
 # and $ReleaseChannelDefault set to the channel; the repo-file default is
 # the same bucket-root base install-rust.sh carries, so the raw repo copy
 # installs out of the box too.
-$DownloadBaseUrlDefault = 'https://pub-728493de92a943e2a9b2d17b4719f318.r2.dev'
+# No release server is built in: set PRIME_AGENT_DOWNLOAD_BASE_URL.
+$DownloadBaseUrlDefault = ''
 $ReleaseChannelDefault = 'stable'
 
 # The installer-owned bookkeeping, initialized BEFORE any Fail can run
@@ -184,6 +185,9 @@ function Save-Release {
 
 # --- the knobs ----------------------------------------------------------------
 $baseUrl = if ($env:PRIME_AGENT_DOWNLOAD_BASE_URL) { $env:PRIME_AGENT_DOWNLOAD_BASE_URL } else { $DownloadBaseUrlDefault }
+if (-not $baseUrl) {
+    throw 'No release server is configured: set PRIME_AGENT_DOWNLOAD_BASE_URL to your release server, or build from source.'
+}
 $channelRequested = $env:PRIME_AGENT_RELEASE_CHANNEL
 $channel = if ($channelRequested) { $channelRequested } else { $ReleaseChannelDefault }
 $versionPin = $env:PRIME_AGENT_VERSION

@@ -31,17 +31,13 @@ pub const ENV_RELEASE_CHANNEL: &str = "PRIME_AGENT_RELEASE_CHANNEL";
 /// The installer's download-base knob (the bucket holding the channel
 /// manifests and release archives).
 pub const ENV_DOWNLOAD_BASE_URL: &str = "PRIME_AGENT_DOWNLOAD_BASE_URL";
-/// `install-rust.sh`'s `DOWNLOAD_BASE_URL_DEFAULT`: where the channel
-/// manifests (`latest.json`, `beta.json`) are published.
-pub const DEFAULT_DOWNLOAD_BASE_URL: &str = "https://pub-728493de92a943e2a9b2d17b4719f318.r2.dev";
-
-/// The official domain's install endpoint — the stable channel's installer
-/// source; never a GitHub raw or workflow URL (the override env var stays
-/// for tests and pinned installs).
-pub const OFFICIAL_INSTALLER_URL: &str = "https://app.primeintellect.ai/prime-agent/install.sh";
-/// The nightly installer's file under the download base (the domain only
-/// forwards `install.sh`, so nightly updates fetch it from the base).
+/// The stable installer's file under the download base.
+pub const STABLE_INSTALLER_FILE: &str = "install.sh";
+/// The nightly installer's file under the download base.
 pub const BETA_INSTALLER_FILE: &str = "install-beta.sh";
+/// There is no built-in release server: updates only come from one the
+/// user configures, so a build never replaces itself with upstream's.
+pub const NO_RELEASE_SOURCE: &str = "No release server is configured, so there is nothing to update from. Rebuild from source, or set PRIME_AGENT_DOWNLOAD_BASE_URL (or PRIME_AGENT_RUST_INSTALLER_URL) to your own release server.";
 
 /// `install-rust.sh` as this build shipped it. The local operations
 /// (`prime-agent update --rollback` and `--archive`) run this copy: they
@@ -64,34 +60,30 @@ const SCRIPT_FETCH_TIMEOUT: Duration = Duration::from_secs(30);
 const LAUNCHER_PROBE_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// The installer script URL for an installer channel (`stable` | `beta`):
-/// `<download base>/install-beta.sh` for beta, the official domain's
-/// install endpoint otherwise. `PRIME_AGENT_RUST_INSTALLER_URL` overrides
-/// both — tests serve their own script, a pinned install can point
-/// elsewhere.
+/// `<download base>/install-beta.sh` for beta, `<download base>/install.sh`
+/// otherwise. `PRIME_AGENT_RUST_INSTALLER_URL` overrides both. `None` when
+/// neither is configured (see [`NO_RELEASE_SOURCE`]).
 #[must_use]
-pub fn installer_script_url(channel: Option<&str>) -> String {
+pub fn installer_script_url(channel: Option<&str>) -> Option<String> {
     if let Ok(url) = std::env::var(ENV_INSTALLER_URL) {
         if !url.trim().is_empty() {
-            return url;
+            return Some(url);
         }
     }
-    match channel {
-        Some("beta") => format!(
-            "{}/{BETA_INSTALLER_FILE}",
-            download_base_url().trim_end_matches('/')
-        ),
-        _ => OFFICIAL_INSTALLER_URL.to_string(),
-    }
+    let file = match channel {
+        Some("beta") => BETA_INSTALLER_FILE,
+        _ => STABLE_INSTALLER_FILE,
+    };
+    download_base_url().map(|base| format!("{}/{file}", base.trim_end_matches('/')))
 }
 
 /// The download base `--check` reads the channel manifest from: the
-/// installer's own knob, else its default.
+/// installer's own knob. `None` when it is not set (see [`NO_RELEASE_SOURCE`]).
 #[must_use]
-pub fn download_base_url() -> String {
+pub fn download_base_url() -> Option<String> {
     std::env::var(ENV_DOWNLOAD_BASE_URL)
         .ok()
         .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| DEFAULT_DOWNLOAD_BASE_URL.to_string())
 }
 
 /// The install prefix the launcher probe reads (`PRIME_AGENT_RUST_PREFIX`,
@@ -199,7 +191,12 @@ pub async fn run_installer(
 ) -> std::result::Result<Installed, UpdateFailure> {
     let prefix = install_prefix();
     let channel = channel.or_else(|| installed_channel(&prefix));
-    run_installer_from(&installer_script_url(channel), &prefix, channel, output).await
+    let Some(url) = installer_script_url(channel) else {
+        return Err(UpdateFailure {
+            message: NO_RELEASE_SOURCE.to_string(),
+        });
+    };
+    run_installer_from(&url, &prefix, channel, output).await
 }
 
 /// Run the takeover update from one explicit script URL and install
@@ -1095,10 +1092,8 @@ echo "installed: 9.9.8-continuous.fedcba9876543210"
         (root, preserve, prefix)
     }
 
-    /// The funnel URL follows the channel: stable fetches the official
-    /// domain's install endpoint, nightly (beta) fetches `install-beta.sh`
-    /// from the download base (the domain forwards only `install.sh`), and
-    /// the override pins both.
+    /// The funnel URL follows the channel under the configured download
+    /// base, the override pins both, and nothing is configured by default.
     #[test]
     fn the_installer_url_follows_the_channel() {
         // The knobs are SAVED and RESTORED around the probe: the env is
@@ -1108,29 +1103,26 @@ echo "installed: 9.9.8-continuous.fedcba9876543210"
         let prior_base = std::env::var(ENV_DOWNLOAD_BASE_URL).ok();
         std::env::remove_var(ENV_INSTALLER_URL);
         std::env::remove_var(ENV_DOWNLOAD_BASE_URL);
-        assert_eq!(
-            installer_script_url(Some("stable")),
-            "https://app.primeintellect.ai/prime-agent/install.sh"
-        );
-        assert_eq!(installer_script_url(None), OFFICIAL_INSTALLER_URL);
-        assert_eq!(
-            installer_script_url(Some("beta")),
-            "https://pub-728493de92a943e2a9b2d17b4719f318.r2.dev/install-beta.sh"
-        );
+        assert_eq!(installer_script_url(Some("stable")), None);
+        assert_eq!(installer_script_url(Some("beta")), None);
+        assert_eq!(download_base_url(), None);
         std::env::set_var(ENV_DOWNLOAD_BASE_URL, "https://mirror.example/");
         assert_eq!(
-            installer_script_url(Some("beta")),
-            "https://mirror.example/install-beta.sh"
+            installer_script_url(Some("beta")).as_deref(),
+            Some("https://mirror.example/install-beta.sh")
         );
-        assert_eq!(installer_script_url(Some("stable")), OFFICIAL_INSTALLER_URL);
+        assert_eq!(
+            installer_script_url(None).as_deref(),
+            Some("https://mirror.example/install.sh")
+        );
         std::env::set_var(ENV_INSTALLER_URL, "http://127.0.0.1:9/pinned.sh");
         assert_eq!(
-            installer_script_url(Some("beta")),
-            "http://127.0.0.1:9/pinned.sh"
+            installer_script_url(Some("beta")).as_deref(),
+            Some("http://127.0.0.1:9/pinned.sh")
         );
         assert_eq!(
-            installer_script_url(Some("stable")),
-            "http://127.0.0.1:9/pinned.sh"
+            installer_script_url(Some("stable")).as_deref(),
+            Some("http://127.0.0.1:9/pinned.sh")
         );
         for (name, prior) in [
             (ENV_INSTALLER_URL, prior_override),

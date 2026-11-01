@@ -506,9 +506,8 @@ fn build_tui_options(
                 config.agent_dir.clone(),
             )),
         )),
-        traces: Some(pa_tui::traces::TracesCommandsHandle(std::sync::Arc::new(
-            crate::client_traces::ClientTraces::new(config.cwd.clone(), config.agent_dir.clone()),
-        ))),
+        // Trace sharing is permanently off: `/traces` only says so.
+        traces: None,
         // `/update`: the same body `prime-agent update` runs, output
         // captured — the TUI stays mounted.
         update_commands: Some(pa_tui::update_command::UpdateCommandsHandle(

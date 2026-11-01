@@ -91,7 +91,10 @@ impl SessionUi {
         view: &mut AgentView,
     ) -> Result<()> {
         let Some(traces) = self.traces.clone() else {
-            self.note("/traces is not available in this client yet", view);
+            self.note(
+                "Trace sharing is disabled in this build: session transcripts are never uploaded.",
+                view,
+            );
             return Ok(());
         };
         let command = resolved.args.trim().to_lowercase();

@@ -5,7 +5,6 @@
 use super::*;
 use std::collections::VecDeque;
 use std::future::Future;
-use std::io::Write as _;
 use std::pin::Pin;
 use std::sync::Mutex;
 
@@ -25,10 +24,6 @@ impl ScriptedTraceHttp {
             requests: Mutex::new(Vec::new()),
             answers: Mutex::new(answers.into_iter().collect()),
         }
-    }
-
-    fn last_request(&self) -> CapturedRequest {
-        self.requests.lock().unwrap().last().cloned().unwrap()
     }
 
     pub(super) fn request_count(&self) -> usize {
@@ -172,197 +167,25 @@ fn the_header_validation_matches_ts() {
     assert!(read_trace_session_header(&blank).is_none());
 }
 
+/// Trace sharing is permanently off: a settings file that opts in, a stored
+/// credential, and a manual upload (no consent requirement) still send nothing.
 #[tokio::test]
-// The env lock is held across awaits by design (env must stay stable).
-#[allow(clippy::await_holding_lock)]
-async fn the_upload_sends_the_ts_request_and_records_the_cursor() {
+#[allow(clippy::await_holding_lock)] // the env lock must span the upload that reads the env
+async fn no_upload_ever_reaches_the_network() {
     let _env = env_lock();
     let _credentials = clear_trace_credentials();
-    let fixture = Fixture::new();
-    let session = fixture.write_session("s.jsonl", "sid-1");
-    std::env::set_var("PRIME_AGENT_TRACES_API_KEY", "trace-key");
-    let http = ScriptedTraceHttp::new(vec![Ok(response(
-        200,
-        r#"{"session_id":"sid-1","trace_id":"tid","bytes_stored":42,"key":"k"}"#,
-    ))]);
-    let result = upload_trace_file(&fixture.options(&http, Some(&session))).await;
-    assert_eq!(
-        result,
-        TraceUploadResult::Uploaded {
-            session_id: "sid-1".to_string(),
-            trace_id: "tid".to_string(),
-            bytes_stored: 42,
-            key: Some("k".to_string()),
-        }
-    );
-    let (url, headers, body) = http.last_request();
-    assert_eq!(
-        url,
-        "https://api.primeintellect.ai/api/v1/agent-traces/sessions/sid-1"
-    );
-    let header = |name: &str| {
-        headers
-            .iter()
-            .find(|(key, _)| key == name)
-            .map(|(_, value)| value.clone())
-            .unwrap()
-    };
-    assert_eq!(header("Authorization"), "Bearer trace-key");
-    assert_eq!(header("Content-Type"), "application/x-ndjson");
-    assert_eq!(header("Accept"), "application/json");
-    assert_eq!(header("X-Trace-Id"), "sid-1");
-    assert_eq!(header("X-Cwd"), "/w");
-    assert!(header("X-Agent-Version").contains('.'));
-    assert!(body.contains("\"role\":\"user\""));
-    let signature = TraceUploadSignature::of(&session).expect("signature");
-    let recorded = read_agent_trace_outbox_entry(&fixture.agent_dir, &session);
-    assert!(signature_equals(recorded, signature));
-    let log = std::fs::read_to_string(agent_traces_log_path(&fixture.agent_dir)).expect("log");
-    assert!(log.contains("uploaded session sid-1 (42 bytes)"), "{log}");
-}
-
-#[tokio::test]
-async fn the_disabled_requirement_gate_matches_ts() {
+    std::env::set_var("PRIME_AGENT_TRACES_API_KEY", "key");
     let fixture = Fixture::new();
     let session = fixture.write_session("s.jsonl", "sid");
-    // Sharing defaults ON, so the disabled gate needs an explicit
-    // opt-out on disk; `reload_config` re-reads it before the gate.
-    let mut settings = crate::settings::SettingsManager::create(&fixture.cwd, &fixture.agent_dir);
-    settings
-        .set_agent_traces_enabled(false)
-        .expect("the opt-out write");
-    let http = ScriptedTraceHttp::new(vec![]);
-    let mut options = fixture.options(&http, Some(&session));
-    options.require_enabled = true;
-    options.reload_config = true;
-    let result = upload_trace_file(&options).await;
-    assert_eq!(result, TraceUploadResult::Disabled);
-}
-
-#[tokio::test]
-// The env lock is held across awaits by design (env must stay stable).
-#[allow(clippy::await_holding_lock)]
-async fn a_missing_credential_short_circuits_the_request() {
-    let _env = env_lock();
-    let _credentials = clear_trace_credentials();
-    let fixture = Fixture::new();
-    let session = fixture.write_session("s.jsonl", "sid");
-    let http = ScriptedTraceHttp::new(vec![]);
-    let result = upload_trace_file(&fixture.options(&http, Some(&session))).await;
-    assert_eq!(result, TraceUploadResult::MissingCredentials);
-}
-
-#[tokio::test]
-// The env lock is held across awaits by design (env must stay stable).
-#[allow(clippy::await_holding_lock)]
-async fn an_oversize_session_reports_the_limit() {
-    let _env = env_lock();
-    let _credentials = clear_trace_credentials();
-    std::env::set_var("PRIME_AGENT_TRACES_API_KEY", "trace-key");
-    let fixture = Fixture::new();
-    let session = fixture.session_dir.join("big.jsonl");
-    let mut file = std::fs::File::create(&session).expect("big file");
-    writeln!(
-        file,
-        "{{\"type\":\"session\",\"id\":\"big\",\"timestamp\":\"t\",\"cwd\":\"/w\"}}"
+    std::fs::write(
+        fixture.agent_dir.join("settings.json"),
+        r#"{"agentTraces":{"enabled":true}}"#,
     )
-    .expect("header");
-    drop(file);
-    std::fs::File::options()
-        .append(true)
-        .open(&session)
-        .expect("reopen")
-        .set_len(MAX_TRACE_BYTES + 1)
-        .expect("sparse size");
-    let http = ScriptedTraceHttp::new(vec![]);
-    let result = upload_trace_file(&fixture.options(&http, Some(&session))).await;
-    assert_eq!(
-        result,
-        TraceUploadResult::TooLarge {
-            size: MAX_TRACE_BYTES + 1,
-            max_bytes: MAX_TRACE_BYTES,
-        }
-    );
-}
-
-#[tokio::test]
-// The env lock is held across awaits by design (env must stay stable).
-#[allow(clippy::await_holding_lock)]
-async fn an_error_response_carries_the_status_and_message() {
-    let _env = env_lock();
-    let _credentials = clear_trace_credentials();
-    std::env::set_var("PRIME_AGENT_TRACES_API_KEY", "trace-key");
-    let fixture = Fixture::new();
-    let session = fixture.write_session("s.jsonl", "sid");
-    let http = ScriptedTraceHttp::new(vec![Ok(response(404, r#"{"error":{"message":"nope"}}"#))]);
-    let result = upload_trace_file(&fixture.options(&http, Some(&session))).await;
-    assert_eq!(
-        result,
-        TraceUploadResult::Failed {
-            status_code: Some(404),
-            message: "nope".to_string(),
-            retry_after_ms: None,
-        }
-    );
-}
-
-#[tokio::test]
-// The env lock is held across awaits by design (env must stay stable).
-#[allow(clippy::await_holding_lock)]
-async fn the_retriable_statuses_back_off_and_503_honors_retry_after() {
-    let _env = env_lock();
-    let _credentials = clear_trace_credentials();
-    std::env::set_var("PRIME_AGENT_TRACES_API_KEY", "trace-key");
-    let fixture = Fixture::new();
-    let session = fixture.write_session("s.jsonl", "sid");
-    let http = ScriptedTraceHttp::new(vec![
-        Ok(TraceHttpResponse {
-            status: 503,
-            body: String::new(),
-            retry_after: Some("1".to_string()),
-        }),
-        Ok(response(
-            200,
-            r#"{"session_id":"sid","trace_id":"sid","bytes_stored":1}"#,
-        )),
-    ]);
-    let delays = Arc::new(std::sync::atomic::AtomicU64::new(0));
-    let observed = delays.clone();
-    let mut options = fixture.options(&http, Some(&session));
-    options.on_upload_delay = Some(Arc::new(move |delay| {
-        if let TraceUploadDelay::RetryBackoff(ms) = delay {
-            observed.fetch_max(ms, Ordering::SeqCst);
-        }
-    }));
-    let result = upload_trace_file(&options).await;
-    assert!(matches!(result, TraceUploadResult::Uploaded { .. }));
-    // The Retry-After second won over the exponential backoff.
-    assert_eq!(delays.load(Ordering::SeqCst), 1000);
-}
-
-#[tokio::test]
-// The env lock is held across awaits by design (env must stay stable).
-#[allow(clippy::await_holding_lock)]
-async fn the_outbox_cursor_makes_an_enabled_upload_unchanged() {
-    let _env = env_lock();
-    let _credentials = clear_trace_credentials();
-    std::env::set_var("PRIME_AGENT_TRACES_API_KEY", "trace-key");
-    let fixture = Fixture::new();
-    let session = fixture.write_session("s.jsonl", "sid");
-    // The sharing flag gates the run before the cursor: an enabled
-    // setting reaches the unchanged check.
-    let mut settings = crate::settings::SettingsManager::create(&fixture.cwd, &fixture.agent_dir);
-    settings
-        .set_agent_traces_enabled(true)
-        .expect("the enable write");
-    let signature = TraceUploadSignature::of(&session).expect("signature");
-    record_agent_trace_outbox_upload(&fixture.agent_dir, &session, signature)
-        .expect("cursor write");
-    let http = ScriptedTraceHttp::new(vec![]);
-    let mut options = fixture.options(&http, Some(&session));
-    options.require_enabled = true;
-    let result = upload_trace_file(&options).await;
-    assert_eq!(result, TraceUploadResult::Unchanged);
+    .expect("an opted-in settings file");
+    let http = ScriptedTraceHttp::new(vec![Ok(response(200, "{}"))]);
+    let options = fixture.options(&http, Some(&session));
+    assert_eq!(upload_trace_file(&options).await, TraceUploadResult::Disabled);
+    assert_eq!(http.request_count(), 0);
 }
 
 #[tokio::test]
@@ -511,54 +334,6 @@ fn format_http_date(ms: u64) -> String {
     )
 }
 
-#[tokio::test]
-// The env lock is held across awaits by design (env must stay stable).
-#[allow(clippy::await_holding_lock)]
-async fn the_upload_all_sweeps_with_the_gate_and_tallies() {
-    let _env = env_lock();
-    let _credentials = clear_trace_credentials();
-    std::env::set_var("PRIME_AGENT_TRACES_API_KEY", "trace-key");
-    let fixture = Fixture::new();
-    fixture.write_session("a.jsonl", "sid-a");
-    let http = ScriptedTraceHttp::new(vec![Ok(response(
-        200,
-        r#"{"session_id":"sid-a","bytes_stored":10}"#,
-    ))]);
-    let (progress_tx, mut progress_rx) =
-        tokio::sync::mpsc::unbounded_channel::<TraceUploadAllProgress>();
-    let options = TraceUploadAllOptions {
-        session_dir: Some(&fixture.session_dir),
-        cwd: &fixture.cwd,
-        agent_dir: &fixture.agent_dir,
-        require_enabled: false,
-        reload_config: false,
-        base_url: None,
-        http: &http,
-        request_timeout_ms: DEFAULT_REQUEST_TIMEOUT_MS,
-        cancel: None,
-        on_upload_delay: None,
-        // One file keeps the platform rate gate out of the test's wall clock.
-        concurrency: Some(1),
-        progress: Some(progress_tx),
-    };
-    let result = upload_all_traces(&options).await;
-    assert_eq!(result.total, 1);
-    assert_eq!(result.uploaded, 1);
-    assert_eq!(result.failed, 0);
-    assert_eq!(result.skipped, 0);
-    assert_eq!(result.bytes_stored, 10);
-    assert_eq!(result.results.len(), 1);
-    let mut notes = Vec::new();
-    while let Ok(note) = progress_rx.try_recv() {
-        notes.push((note.completed, note.total));
-    }
-    assert_eq!(
-        notes,
-        vec![(0, 1), (1, 1)],
-        "the progress reports completion in file order"
-    );
-}
-
 #[tokio::test(start_paused = true)]
 // The env lock is held across awaits by design (env must stay stable).
 #[allow(clippy::await_holding_lock)]
@@ -655,28 +430,3 @@ fn the_outbox_entry_path_is_the_path_hash() {
     );
 }
 
-#[tokio::test(start_paused = true)]
-async fn consent_revoked_during_backoff_prevents_the_next_request() {
-    let fixture = Fixture::new();
-    let mut settings = crate::settings::SettingsManager::create(&fixture.cwd, &fixture.agent_dir);
-    settings.set_agent_traces_enabled(true).unwrap();
-    let http = ScriptedTraceHttp::new(vec![Ok(response(500, "synthetic failure"))]);
-    let cwd = fixture.cwd.clone();
-    let agent_dir = fixture.agent_dir.clone();
-    let mut options = fixture.options(&http, None);
-    options.require_enabled = true;
-    options.on_upload_delay = Some(Arc::new(move |_| {
-        let mut settings = crate::settings::SettingsManager::create(&cwd, &agent_dir);
-        settings.set_agent_traces_enabled(false).unwrap();
-    }));
-    let result = super::upload::fetch_with_retry(
-        &options,
-        "http://synthetic.invalid",
-        vec![],
-        String::new(),
-        None,
-    )
-    .await;
-    assert_eq!(result, Err(TraceHttpError::Cancelled));
-    assert_eq!(http.requests.lock().unwrap().len(), 1);
-}

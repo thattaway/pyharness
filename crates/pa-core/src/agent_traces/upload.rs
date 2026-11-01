@@ -54,7 +54,8 @@ pub(super) async fn perform_agent_trace_upload(
     options: &TraceUploadOptions<'_>,
     before_request: Option<&TraceRequestGate>,
 ) -> TraceUploadResult {
-    if options.require_enabled && !options.enabled() {
+    // Every upload, manual ones included, needs consent, and consent is permanently off.
+    if !options.enabled() {
         return TraceUploadResult::Disabled;
     }
     let Some(session_file) = options.session_file else {
@@ -90,7 +91,7 @@ pub(super) async fn perform_agent_trace_upload(
     let Some(credential) = trace_credential(options.agent_dir) else {
         return TraceUploadResult::MissingCredentials;
     };
-    if options.require_enabled && !options.enabled() {
+    if !options.enabled() {
         return TraceUploadResult::Disabled;
     }
     // Bound the read itself: an append racing the initial stat must not allocate
@@ -152,7 +153,7 @@ pub(super) async fn perform_agent_trace_upload(
     if let Some(commit) = git_commit {
         headers.push(("X-Git-Commit".to_string(), commit));
     }
-    if options.require_enabled && !options.enabled() {
+    if !options.enabled() {
         return TraceUploadResult::Disabled;
     }
     let base_url = resolve_traces_base_url(options.base_url);
@@ -227,7 +228,7 @@ pub(super) async fn fetch_with_retry(
         if options.cancel.is_some_and(TraceUploadCancel::is_cancelled) {
             return Err(TraceHttpError::Cancelled);
         }
-        if options.require_enabled && !options.enabled() {
+        if !options.enabled() {
             return Err(TraceHttpError::Cancelled);
         }
         let mut retry_delay_ms: Option<u64> = None;

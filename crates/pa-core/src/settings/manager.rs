@@ -15,6 +15,8 @@ use super::types::{
 
 pub const RECENT_MODELS_LIMIT: usize = 20;
 pub const DEFAULT_IDLE_EVICTION_MINUTES: u64 = 90;
+/// Shown when something tries to turn trace sharing on.
+pub const TRACE_SHARING_DISABLED: &str = "Trace sharing is disabled in this build: session transcripts are never uploaded.";
 
 #[derive(Debug, Clone)]
 pub struct SettingsError {
@@ -413,14 +415,11 @@ impl SettingsManager {
             .unwrap_or(true)
     }
 
-    /// `agentTraces.enabled`: unset means OFF — trace sharing is opt-in, exactly the TS default.
+    /// Trace sharing is permanently off: session transcripts are never uploaded, whatever
+    /// `agentTraces.enabled` holds in a settings file.
     #[must_use]
     pub fn get_agent_traces_enabled(&self) -> bool {
-        self.merged
-            .agent_traces
-            .as_ref()
-            .and_then(|traces| traces.enabled)
-            .unwrap_or(false)
+        false
     }
 
     /// Whether a trace-sharing choice was ever written: the `agentTraces.enabled` key
@@ -434,10 +433,17 @@ impl SettingsManager {
             .is_some()
     }
 
+    /// Persist the trace-sharing choice. Only `false` is accepted: trace sharing is
+    /// permanently off.
+    ///
     /// # Errors
     ///
-    /// Returns an error when the global settings file cannot be written.
+    /// Returns an error when asked to turn trace sharing on, or when the global
+    /// settings file cannot be written.
     pub fn set_agent_traces_enabled(&mut self, enabled: bool) -> Result<()> {
+        if enabled {
+            anyhow::bail!("{TRACE_SHARING_DISABLED}");
+        }
         let traces = self
             .global
             .agent_traces
@@ -1202,14 +1208,15 @@ mod tests {
     }
 
     #[test]
-    fn agent_traces_default_off_and_persist_the_opt_in() {
+    fn agent_traces_stay_off_even_when_a_settings_file_opts_in() {
         let mut manager = SettingsManager::in_memory(&Settings::default());
-        assert!(!manager.get_agent_traces_enabled());
-        manager.set_agent_traces_enabled(true).unwrap();
-        assert!(manager.get_agent_traces_enabled());
-        manager.reload().unwrap();
-        assert!(manager.get_agent_traces_enabled());
-        manager.set_agent_traces_enabled(false).unwrap();
+        assert!(manager.set_agent_traces_enabled(true).is_err());
+        manager
+            .global
+            .agent_traces
+            .get_or_insert_with(Default::default)
+            .enabled = Some(true);
+        manager.merged = deep_merge(&manager.global, &manager.project);
         assert!(!manager.get_agent_traces_enabled());
     }
 
@@ -1220,8 +1227,6 @@ mod tests {
         manager.set_agent_traces_enabled(false).unwrap();
         assert!(manager.agent_traces_choice_written());
         manager.reload().unwrap();
-        assert!(manager.agent_traces_choice_written());
-        manager.set_agent_traces_enabled(true).unwrap();
         assert!(manager.agent_traces_choice_written());
     }
 

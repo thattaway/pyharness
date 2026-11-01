@@ -11,10 +11,10 @@ use crate::settings::SettingsManager;
 /// What decides whether telemetry is on, in precedence order (TS
 /// `isTelemetryEnabled`): `PI_OFFLINE` / `DO_NOT_TRACK` force off,
 /// `PRIME_AGENT_TELEMETRY` forces either way, then settings
-/// `telemetry.enabled`, then the default (on).
+/// `telemetry.enabled`, then the default (off).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TelemetrySwitch {
-    /// Nothing set: on.
+    /// Nothing set: off.
     Default,
     /// Settings `telemetry.enabled` (any scope false turns it off).
     Settings(bool),
@@ -26,7 +26,7 @@ impl TelemetrySwitch {
     #[must_use]
     pub fn enabled(self) -> bool {
         match self {
-            Self::Default => true,
+            Self::Default => false,
             Self::Settings(enabled) | Self::Env { enabled, .. } => enabled,
         }
     }
@@ -35,7 +35,7 @@ impl TelemetrySwitch {
     #[must_use]
     pub fn reason(self) -> String {
         match self {
-            Self::Default => "on by default".to_string(),
+            Self::Default => "off by default".to_string(),
             Self::Settings(true) => "turned on in settings".to_string(),
             Self::Settings(false) => "turned off in settings".to_string(),
             Self::Env {
@@ -78,12 +78,11 @@ fn switch_from(env: impl Fn(&str) -> Option<String>, setting: Option<bool>) -> T
     setting.map_or(TelemetrySwitch::Default, TelemetrySwitch::Settings)
 }
 
-/// Where events go: the platform endpoint in release builds, nowhere in
-/// debug builds (every `cargo test` and dev run), so tests and local
-/// development never reach production analytics.
+/// Where events go: nowhere. Usage analytics are never sent over the
+/// network; turning telemetry on only writes the local JSONL mirror.
 #[must_use]
 pub fn telemetry_endpoint() -> Option<&'static str> {
-    (!cfg!(debug_assertions)).then_some(pa_telemetry::ANALYTICS_ENDPOINT)
+    None
 }
 
 /// The `status` report: state and why, the endpoint, the installation id.
@@ -91,7 +90,7 @@ pub fn telemetry_endpoint() -> Option<&'static str> {
 pub fn telemetry_status_text(settings: &SettingsManager, agent_dir: &Path) -> String {
     let switch = telemetry_switch(settings);
     let state = if switch.enabled() { "on" } else { "off" };
-    let endpoint = telemetry_endpoint().unwrap_or("nowhere (development build)");
+    let endpoint = telemetry_endpoint().unwrap_or("nowhere (local log only)");
     let installation_id = pa_telemetry::existing_install_id(agent_dir)
         .unwrap_or_else(|| "not created yet".to_string());
     format!(
@@ -251,6 +250,6 @@ mod tests {
         let id = pa_telemetry::install_id(&agent_dir).unwrap();
         let after = telemetry_status_text(&settings, &agent_dir);
         assert!(after.contains(&format!("Installation id: {id}")));
-        assert!(after.contains("Endpoint: nowhere (development build)"));
+        assert!(after.contains("Endpoint: nowhere (local log only)"));
     }
 }

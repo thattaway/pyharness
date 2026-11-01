@@ -2392,6 +2392,8 @@ async fn a_ledger_child_wake_joins_an_already_hosting_resident() {
 #[tokio::test]
 async fn the_exit_flush_sends_the_partial_daemon_event_summary() {
     let _env = CleanTelemetryEnv::default();
+    // Telemetry is off by default; the scrubbed var is restored on drop.
+    std::env::set_var("PRIME_AGENT_TELEMETRY", "1");
     let dir = tempfile::TempDir::new().unwrap();
     let supervisor = Supervisor::new(SupervisorOptions {
         socket_path: dir.path().join("daemon.sock"),

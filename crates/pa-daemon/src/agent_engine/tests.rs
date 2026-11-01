@@ -56,8 +56,9 @@ fn write_compaction_settings(dir: &std::path::Path, reserve_tokens: u64) {
 /// One faux-driven engine over its own tempdir (settings written before
 /// the first prompt so the session build resolves them).
 /// Turns the repo's `cargo test` telemetry opt-out (`DO_NOT_TRACK=1` in
-/// `.cargo/config.toml`) back off for one test that asserts telemetry
-/// wiring, restoring it on drop. Debug builds have no network sink, so the
+/// `.cargo/config.toml`) back off and opts in (`PRIME_AGENT_TELEMETRY=1`,
+/// since telemetry is off by default) for one test that asserts telemetry
+/// wiring, restoring both on drop. Debug builds have no network sink, so the
 /// opted-in test still sends nothing (its callers are ignored in release
 /// builds, which have one); serialized through the crate-wide
 /// `test_support::TELEMETRY_ENV_MUTEX` so the opt-ins and the supervisor
@@ -67,15 +68,19 @@ pub(crate) fn telemetry_opt_in() -> TelemetryOptIn {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let previous = std::env::var_os("DO_NOT_TRACK");
+    let previous_opt_in = std::env::var_os("PRIME_AGENT_TELEMETRY");
     std::env::set_var("DO_NOT_TRACK", "0");
+    std::env::set_var("PRIME_AGENT_TELEMETRY", "1");
     TelemetryOptIn {
         previous,
+        previous_opt_in,
         _guard: guard,
     }
 }
 
 pub(crate) struct TelemetryOptIn {
     previous: Option<std::ffi::OsString>,
+    previous_opt_in: Option<std::ffi::OsString>,
     _guard: std::sync::MutexGuard<'static, ()>,
 }
 
@@ -84,6 +89,10 @@ impl Drop for TelemetryOptIn {
         match self.previous.take() {
             Some(value) => std::env::set_var("DO_NOT_TRACK", value),
             None => std::env::remove_var("DO_NOT_TRACK"),
+        }
+        match self.previous_opt_in.take() {
+            Some(value) => std::env::set_var("PRIME_AGENT_TELEMETRY", value),
+            None => std::env::remove_var("PRIME_AGENT_TELEMETRY"),
         }
     }
 }

@@ -78,7 +78,7 @@ jobs:
 
   # THE WINDOWS TEST SURFACE (the operator's 2026-10-08 ask): the freshly
   # built binary booted as a real daemon, driven through the three
-  # scripted TUI scenarios of crates/pa-cli/tests/windows_runtime_triage_e2e.rs
+  # scripted TUI scenarios of crates/ph-cli/tests/windows_runtime_triage_e2e.rs
   # (the reopen battery, the subagent-distinct battery, the glyph-panes
   # battery), with captured headless panes uploaded for renderer inspection.
   # The runner is pinned to windows-2022 (never the mutable windows-latest):
@@ -106,17 +106,17 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: windows-tui-battery
-      # The binary the battery boots is `CARGO_BIN_EXE_prime-agent` - the
+      # The binary the battery boots is `CARGO_BIN_EXE_pyharness` - the
       # same commit's fresh build. The explicit step names the freshly
       # built binary and warms the test run's build.
       - name: Build the binary the battery boots (locked)
-        run: cargo build --locked -p pa-cli --bin prime-agent
+        run: cargo build --locked -p ph-cli --bin pyharness
       # Console VT setup/restore; redirected CI stdout can take the no-op branch.
       - name: The Windows console mode regression
         shell: bash
         run: |
           set -euo pipefail
-          cargo test --locked -p pa-types --lib console -- --nocapture
+          cargo test --locked -p ph-types --lib console -- --nocapture
       - name: Run the triage battery (the three scripted TUI scenarios)
         shell: bash
         run: |
@@ -125,7 +125,7 @@ jobs:
           # an unset dump dir would upload no renderer evidence.
           test -n "${WINDOWS_RUNTIME_TRIAGE_DUMP_DIR}" \
             || { echo "::error::WINDOWS_RUNTIME_TRIAGE_DUMP_DIR is unset"; exit 1; }
-          cargo test --locked -p pa-cli --test windows_runtime_triage_e2e -- --test-threads=1 --nocapture
+          cargo test --locked -p ph-cli --test windows_runtime_triage_e2e -- --test-threads=1 --nocapture
       # Renderer evidence only: these frames do not validate console glyphs.
       - name: Upload the pane dumps
         if: always()
@@ -135,7 +135,7 @@ jobs:
           path: win-tui-dumps
           if-no-files-found: warn
 
-  # The deep battery (the multi-hour debug loop; the full pa-cli e2e set
+  # The deep battery (the multi-hour debug loop; the full ph-cli e2e set
   # alone runs past three hours on this runner - measured twice): the
   # on-demand/nightly arm stays, but it must not bill on every PR.
   windows-battery:
@@ -143,9 +143,9 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: windows-latest
     # GitHub-hosted jobs stop at six hours whatever this says, so 360 is
-    # the real maximum. The full pa-cli e2e set alone runs past it on this
+    # the real maximum. The full ph-cli e2e set alone runs past it on this
     # runner (measured on four dispatches), which is why the install e2e
-    # runs before the pa-cli battery.
+    # runs before the ph-cli battery.
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -159,41 +159,41 @@ jobs:
       # The strip rides INSIDE each battery step: a step is its own
       # process, so a strip in a prior step never reaches the test
       # process (Macroscope's finding).
-      - name: pa-types battery
-        id: pa_types
+      - name: ph-types battery
+        id: ph_types
         continue-on-error: true
         shell: pwsh
         run: |
-          Get-ChildItem Env: | Where-Object { $_.Name -like 'PRIME_AGENT_*' } |
+          Get-ChildItem Env: | Where-Object { $_.Name -like 'PYHARNESS_*' } |
             ForEach-Object { Remove-Item -Path ("Env:" + $_.Name) -ErrorAction SilentlyContinue }
-          cargo test --locked -p pa-types 2>&1 | Tee-Object -FilePath pa-types_win.log
+          cargo test --locked -p ph-types 2>&1 | Tee-Object -FilePath ph-types_win.log
           exit $LASTEXITCODE
-      - name: pa-core battery
-        id: pa_core
+      - name: ph-core battery
+        id: ph_core
         continue-on-error: true
         shell: pwsh
         run: |
-          Get-ChildItem Env: | Where-Object { $_.Name -like 'PRIME_AGENT_*' } |
+          Get-ChildItem Env: | Where-Object { $_.Name -like 'PYHARNESS_*' } |
             ForEach-Object { Remove-Item -Path ("Env:" + $_.Name) -ErrorAction SilentlyContinue }
-          cargo test --locked -p pa-core 2>&1 | Tee-Object -FilePath pa-core_win.log
+          cargo test --locked -p ph-core 2>&1 | Tee-Object -FilePath ph-core_win.log
           exit $LASTEXITCODE
-      - name: pa-daemon battery
-        id: pa_daemon
+      - name: ph-daemon battery
+        id: ph_daemon
         continue-on-error: true
         shell: pwsh
         run: |
-          Get-ChildItem Env: | Where-Object { $_.Name -like 'PRIME_AGENT_*' } |
+          Get-ChildItem Env: | Where-Object { $_.Name -like 'PYHARNESS_*' } |
             ForEach-Object { Remove-Item -Path ("Env:" + $_.Name) -ErrorAction SilentlyContinue }
-          cargo test --locked -p pa-daemon 2>&1 | Tee-Object -FilePath pa-daemon_win.log
+          cargo test --locked -p ph-daemon 2>&1 | Tee-Object -FilePath ph-daemon_win.log
           exit $LASTEXITCODE
-      - name: pa-tui battery
-        id: pa_tui
+      - name: ph-tui battery
+        id: ph_tui
         continue-on-error: true
         shell: pwsh
         run: |
-          Get-ChildItem Env: | Where-Object { $_.Name -like 'PRIME_AGENT_*' } |
+          Get-ChildItem Env: | Where-Object { $_.Name -like 'PYHARNESS_*' } |
             ForEach-Object { Remove-Item -Path ("Env:" + $_.Name) -ErrorAction SilentlyContinue }
-          cargo test --locked -p pa-tui 2>&1 | Tee-Object -FilePath pa-tui_win.log
+          cargo test --locked -p ph-tui 2>&1 | Tee-Object -FilePath ph-tui_win.log
           exit $LASTEXITCODE
       # The Windows install gates: both entry points (install.ps1 and
       # install-rust.sh under Git Bash) install the REAL assembled
@@ -201,7 +201,7 @@ jobs:
       # --version through their launchers (scripts/release/
       # test_windows_install.ps1). This is the shipped-product proof: the
       # build's artifact + the installers the channel serves. THE ORDER:
-      # BEFORE the pa-cli battery - the full pa-cli e2e set runs past
+      # BEFORE the ph-cli battery - the full ph-cli e2e set runs past
       # three hours on this runner (measured twice), so the install proof
       # must not sit behind it.
       - name: windows install e2e (ps1 + sh routes)
@@ -235,19 +235,19 @@ jobs:
         env:
           RAW_REF: ${{ inputs.ref || github.ref }}
         run: |
-          Get-ChildItem Env: | Where-Object { $_.Name -like 'PRIME_AGENT_*' } |
+          Get-ChildItem Env: | Where-Object { $_.Name -like 'PYHARNESS_*' } |
             ForEach-Object { Remove-Item -Path ("Env:" + $_.Name) -ErrorAction SilentlyContinue }
           Start-Transcript -Path win-raw-one-liner.log
           $installExit = 0
           try {
-            irm "https://raw.githubusercontent.com/PrimeIntellect-ai/prime-agent/$env:RAW_REF/install.ps1" | iex
+            irm "https://raw.githubusercontent.com/thattaway/pyharness/$env:RAW_REF/install.ps1" | iex
           } catch {
             $installExit = 1
             Write-Output "RAW_ONE_LINER: the one-liner threw: $($_.Exception.Message)"
           }
           $launcherExit = 0
           try {
-            & (Join-Path $HOME '.local\bin\prime-agent.cmd') --version
+            & (Join-Path $HOME '.local\bin\pyharness.cmd') --version
             $launcherExit = $LASTEXITCODE
             Write-Output "RAW_ONE_LINER: launcher --version exit $launcherExit"
             if ($launcherExit -ne 0) { $installExit = 1 }
@@ -258,33 +258,33 @@ jobs:
           Write-Output "RAW_ONE_LINER: install exit $installExit"
           Stop-Transcript
           exit $installExit
-      - name: pa-cli battery (unit + the e2e set)
-        id: pa_cli
+      - name: ph-cli battery (unit + the e2e set)
+        id: ph_cli
         continue-on-error: true
         shell: pwsh
         run: |
-          Get-ChildItem Env: | Where-Object { $_.Name -like 'PRIME_AGENT_*' } |
+          Get-ChildItem Env: | Where-Object { $_.Name -like 'PYHARNESS_*' } |
             ForEach-Object { Remove-Item -Path ("Env:" + $_.Name) -ErrorAction SilentlyContinue }
-          cargo test --locked -p pa-cli 2>&1 | Tee-Object -FilePath pa-cli_win.log
+          cargo test --locked -p ph-cli 2>&1 | Tee-Object -FilePath ph-cli_win.log
           exit $LASTEXITCODE
       - name: Summary + the overall verdict
         shell: pwsh
         run: |
-          $summary = "WIN_BATTERY pa-types=${{ steps.pa_types.outcome }} pa-core=${{ steps.pa_core.outcome }} pa-daemon=${{ steps.pa_daemon.outcome }} pa-tui=${{ steps.pa_tui.outcome }} pa-cli=${{ steps.pa_cli.outcome }} install-e2e=${{ steps.install_e2e.outcome }} channel-fallback=${{ steps.channel_fallback.outcome }} raw-one-liner=${{ steps.raw_one_liner.outcome }}"
+          $summary = "WIN_BATTERY ph-types=${{ steps.ph_types.outcome }} ph-core=${{ steps.ph_core.outcome }} ph-daemon=${{ steps.ph_daemon.outcome }} ph-tui=${{ steps.ph_tui.outcome }} ph-cli=${{ steps.ph_cli.outcome }} install-e2e=${{ steps.install_e2e.outcome }} channel-fallback=${{ steps.channel_fallback.outcome }} raw-one-liner=${{ steps.raw_one_liner.outcome }}"
           Add-Content -Path win_battery_summary.log -Value $summary
           Write-Output $summary
-          if (@("${{ steps.pa_types.outcome }}", "${{ steps.pa_core.outcome }}", "${{ steps.pa_daemon.outcome }}", "${{ steps.pa_tui.outcome }}", "${{ steps.pa_cli.outcome }}", "${{ steps.install_e2e.outcome }}", "${{ steps.channel_fallback.outcome }}", "${{ steps.raw_one_liner.outcome }}") -contains 'failure') { exit 1 }
+          if (@("${{ steps.ph_types.outcome }}", "${{ steps.ph_core.outcome }}", "${{ steps.ph_daemon.outcome }}", "${{ steps.ph_tui.outcome }}", "${{ steps.ph_cli.outcome }}", "${{ steps.install_e2e.outcome }}", "${{ steps.channel_fallback.outcome }}", "${{ steps.raw_one_liner.outcome }}") -contains 'failure') { exit 1 }
       - name: Upload the per-crate logs
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: windows-battery-logs-${{ github.run_id }}
           path: |
-            pa-types_win.log
-            pa-core_win.log
-            pa-daemon_win.log
-            pa-tui_win.log
-            pa-cli_win.log
+            ph-types_win.log
+            ph-core_win.log
+            ph-daemon_win.log
+            ph-tui_win.log
+            ph-cli_win.log
             win-install-e2e.log
             win-channel-fallback.log
             win-raw-one-liner.log

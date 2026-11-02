@@ -18,7 +18,7 @@ def observations():
 class EvidenceGuards(unittest.TestCase):
     def discovery(self, tag, argv, ownership=True):
         files = {'environ': Mock(), 'cmdline': Mock()}
-        files['environ'].read_bytes.return_value = b'PA_GOAL_FIXTURE_ID=' + tag + b'\0'
+        files['environ'].read_bytes.return_value = b'PH_GOAL_FIXTURE_ID=' + tag + b'\0'
         files['cmdline'].read_bytes.return_value = argv
 
         class Entry:

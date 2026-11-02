@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Report Prime Inference models whose public /models entry lacks specs.
 
-prime-agent drops every Prime Inference model whose `specs` object is null
-(crates/pa-models/src/prime_inference.rs), so such a model never appears in
+pyharness drops every Prime Inference model whose `specs` object is null
+(crates/ph-models/src/prime_inference.rs), so such a model never appears in
 the model selector. This check lists those models, and models whose specs
 miss or null a field the client reads, so the list can go to the inference team.
 
@@ -26,7 +26,7 @@ SPEC_FIELDS = ("context_window", "max_output_tokens", "supports_reasoning", "mod
 
 def main() -> int:
     # The endpoint's edge rejects urllib's default User-Agent with 403.
-    request = urllib.request.Request(MODELS_URL, headers={"User-Agent": "prime-agent-ci"})
+    request = urllib.request.Request(MODELS_URL, headers={"User-Agent": "pyharness-ci"})
     with urllib.request.urlopen(request) as response:
         models = json.load(response)["data"]
     flagged = {}

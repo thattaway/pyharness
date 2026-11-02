@@ -45,16 +45,16 @@ def stop(process):
 def env_for(root):
     env = {key: os.environ[key] for key in ("PATH", "LANG", "LC_ALL", "TZ")
            if key in os.environ}
-    for key in ("PRIME_AGENT_KERNEL_PYTHON", "PA_E2E_KERNEL_PYTHON"):
+    for key in ("PYHARNESS_KERNEL_PYTHON", "PH_E2E_KERNEL_PYTHON"):
         if key in os.environ:
             env[key] = os.environ[key]
     for name in ("home", "tmp", "xdg", "agent/sessions"):
         (root / name).mkdir(parents=True, exist_ok=True)
     env.update(HOME=str(root / "home"), TMPDIR=str(root / "tmp"),
                XDG_CONFIG_HOME=str(root / "xdg"),
-               PRIME_AGENT_CODING_AGENT_DIR=str(root / "agent"),
+               PYHARNESS_CODING_AGENT_DIR=str(root / "agent"),
                PI_CODING_AGENT_DIR=str(root / "agent"), TERM="xterm-256color",
-               PRIME_AGENT_MODEL_PROVIDER="parity-local", PRIME_AGENT_MODEL="parity-1",
+               PYHARNESS_MODEL_PROVIDER="parity-local", PYHARNESS_MODEL="parity-1",
                PI_OFFLINE="1", DO_NOT_TRACK="1")
     (root / "agent/settings.json").write_text(json.dumps({
         "onboardingCompleted": True, "onboardingShown": True,
@@ -68,7 +68,7 @@ def env_for(root):
 
 def skill_pythonpath():
     """The repo's bundled skill sources for kernel cells that import skills. With a
-    PRIME_AGENT_KERNEL_PYTHON override the product installs no bundled skills into
+    PYHARNESS_KERNEL_PYTHON override the product installs no bundled skills into
     that venv (it disables them), so these checks put the sources on PYTHONPATH."""
     skills = Path(__file__).resolve().parent.parent / "skills"
     return os.pathsep.join(sorted(str(path) for path in skills.glob("*/src")))
@@ -365,13 +365,13 @@ class Supervisor:
                         with self.lock:
                             response["data"]["messageCount"] = len(self.messages)
                     elif name == "get_messages":
-                        # pa-daemon worker::commands::handle_get_messages returns
+                        # ph-daemon worker::commands::handle_get_messages returns
                         # the actual transcript.
                         # Fixture turns only append; no branches/pagination are used.
                         with self.lock:
                             response["data"] = {"messages": list(self.messages)}
                     elif name == "get_session_context":
-                        # pa-daemon state_getters::handle_get_session_context's
+                        # ph-daemon state_getters::handle_get_session_context's
                         # context envelope. This fixture has no compaction or
                         # model/thinking/tier change rows: build_session_context
                         # preserves its turns and uses off/None/None defaults.
@@ -446,7 +446,7 @@ class Terminal:
         os.close(self.master)
 
 
-TAG = 'PA_GOAL_FIXTURE_ID'
+TAG = 'PH_GOAL_FIXTURE_ID'
 
 
 def process_identity(pid):
@@ -463,13 +463,13 @@ def verify_worker(row, active, binary, socket_path):
     assert command[0] == str(binary).encode(), 'worker argv0 is not fixture binary'
     env = dict(item.split(b'=', 1) for item in Path('/proc/%d/environ' % pid).read_bytes().split(b'\0') if b'=' in item)
     for key, value in {
-        'PRIME_AGENT_INTERNAL_DAEMON_WORKER': '1',
-        'PRIME_AGENT_INTERNAL_DAEMON_WORKER_ACTIVE_SESSION_ID': active,
-        'PRIME_AGENT_INTERNAL_DAEMON_SUPERVISOR_SOCKET': str(socket_path),
+        'PYHARNESS_INTERNAL_DAEMON_WORKER': '1',
+        'PYHARNESS_INTERNAL_DAEMON_WORKER_ACTIVE_SESSION_ID': active,
+        'PYHARNESS_INTERNAL_DAEMON_SUPERVISOR_SOCKET': str(socket_path),
     }.items():
         assert env.get(key.encode()) == value.encode(), 'wrong fixture worker env identity'
     worker_socket = str(row['socketPath']).encode()
-    assert (worker_socket in command or env.get(b'PRIME_AGENT_INTERNAL_DAEMON_WORKER_SOCKET') == worker_socket), 'wrong worker socket identity'
+    assert (worker_socket in command or env.get(b'PYHARNESS_INTERNAL_DAEMON_WORKER_SOCKET') == worker_socket), 'wrong worker socket identity'
     identity, state = process_identity(pid)
     assert row.get('processStartId') == identity and state != 'Z', 'wrong/reused worker PID'
     return pid, identity
@@ -509,7 +509,7 @@ class OwnedProcesses:
                 return False
             # Kernels retain the owner PID supplied by the actual launcher.
             return ('python' in Path(command[0].decode()).name
-                    and env.get(b'PRIME_AGENT_KERNEL_OWNER_PID') in
+                    and env.get(b'PYHARNESS_KERNEL_OWNER_PID') in
                     {str(owner).encode() for owner in self.targets})
         except (OSError, ValueError, KeyError, AssertionError, UnicodeError):
             return False

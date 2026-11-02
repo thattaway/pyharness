@@ -33,7 +33,7 @@ class ObserveClient(Client):
         self.counter += 1
         ident = str(self.counter)
         envelope = {'type': 'command', 'id': ident,
-            'protocol': {'name': 'prime-agent.daemon', 'version': 7},
+            'protocol': {'name': 'pyharness.daemon', 'version': 7},
             'command': {'type': kind, **payload}}
         self.sent.append(envelope)
         deadline = time.monotonic() + timeout_seconds
@@ -266,10 +266,10 @@ def run_case(binary, root, observation):
         (root / directory).mkdir(parents=True)
     root = root.resolve()
     env = {key: os.environ[key] for key in ('PATH', 'LANG', 'LC_ALL', 'TZ',
-        'PRIME_AGENT_KERNEL_PYTHON', 'PA_E2E_KERNEL_PYTHON') if key in os.environ}
+        'PYHARNESS_KERNEL_PYTHON', 'PH_E2E_KERNEL_PYTHON') if key in os.environ}
     env.update(HOME=str(root / 'home'), TMPDIR=str(root / 'tmp'), DO_NOT_TRACK='1', PI_OFFLINE='1',
-        PI_CODING_AGENT_DIR=str(root / 'agent'), PRIME_AGENT_CODING_AGENT_DIR=str(root / 'agent'),
-        PI_SESSION_DIR=str(root / 'sessions'), PRIME_AGENT_SESSION_DIR=str(root / 'sessions'),
+        PI_CODING_AGENT_DIR=str(root / 'agent'), PYHARNESS_CODING_AGENT_DIR=str(root / 'agent'),
+        PI_SESSION_DIR=str(root / 'sessions'), PYHARNESS_SESSION_DIR=str(root / 'sessions'),
         XDG_CONFIG_HOME=str(root / 'config'), XDG_CACHE_HOME=str(root / 'cache'), XDG_DATA_HOME=str(root / 'data'),
         PYTHONPATH=skill_pythonpath())
     env[TAG] = str(root)
@@ -478,7 +478,7 @@ def main():
         assert sys.platform == 'linux', 'requires hosted Linux binaries'
         temp = tempfile.TemporaryDirectory(prefix='observe-selectors-')
         try:
-            binary = Path(os.environ['PA_RUST_BINARY']).resolve()
+            binary = Path(os.environ['PH_RUST_BINARY']).resolve()
             observation = receipt['run'] = {'binary': str(binary), 'binary_sha256': digest(binary)}
             run_case(binary, Path(temp.name) / 'rust', observation)
             receipt['verified'] = True

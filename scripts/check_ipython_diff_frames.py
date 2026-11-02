@@ -189,7 +189,7 @@ def main():
                'source_commit': TS_COMMIT}
     try:
         assert sys.platform == 'linux', 'hosted Linux only'
-        assert digest(Path(os.environ['PA_TS_ARCHIVE'])) == TS_ARCHIVE_SHA256
+        assert digest(Path(os.environ['PH_TS_ARCHIVE'])) == TS_ARCHIVE_SHA256
         receipt['ts_archive_sha256'] = TS_ARCHIVE_SHA256
         with tempfile.TemporaryDirectory(prefix='pa-diff-frames-', dir='/tmp') as folder:
             for name, case in CASES.items():

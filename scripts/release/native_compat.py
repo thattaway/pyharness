@@ -16,14 +16,14 @@ from pathlib import Path, PurePosixPath
 ASSET_DIR = Path(__file__).resolve().parent / "native-compat"
 PHOTON_SHA256 = "10468181565c56004c867f3a4af96f89a0ef5a63a72f2b5fb12c1f1992a3615c"
 COMPAT_ASSETS = (
-    "theme/prime.json",
+    "theme/pyharness.json",
     "export-html/template.html",
     "photon_rs_bg.wasm",
     "PHOTON-LICENSE.md",
 )
 REQUIRED_NATIVE_FILES = (
-    "prime-agent", "package.json", "install.sh",
-    "prime-agent-runtime/pyproject.toml", "prime-agent-runtime/src/rlm/repl.py",
+    "pyharness", "package.json", "install.sh",
+    "pyharness-runtime/pyproject.toml", "pyharness-runtime/src/rlm/repl.py",
     *COMPAT_ASSETS,
 )
 
@@ -59,7 +59,7 @@ def validate_compatibility_archive(path: Path) -> None:
             if member.name in members:
                 raise ValueError(f"duplicate member in compatibility archive: {member.name}")
             members[member.name] = member
-        windows = "prime-agent.exe" in members
+        windows = "pyharness.exe" in members
         required = ("package.json",) if windows else REQUIRED_NATIVE_FILES
         for name in required:
             member = members.get(name)

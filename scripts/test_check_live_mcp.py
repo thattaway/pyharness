@@ -70,7 +70,7 @@ class VerifierTests(unittest.TestCase):
             listener = socket.socket(socket.AF_UNIX)
             listener.bind(str(path))
             listener.listen(1)
-            protocol = {'name': 'prime-agent.daemon', 'version': 7}
+            protocol = {'name': 'pyharness.daemon', 'version': 7}
             def serve():
                 try:
                     with listener.accept()[0] as connection:

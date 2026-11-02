@@ -15,7 +15,7 @@ class OwnershipTests(unittest.TestCase):
                              {20: 'same-start'})
 
     def test_an_unowned_process_has_no_identity(self):
-        with patch.object(Path, 'read_bytes', return_value=b'PRIME_AGENT_CODING_AGENT_DIR=/another/agent\0'), patch.object(verifier, 'process_identity') as identity:
+        with patch.object(Path, 'read_bytes', return_value=b'PYHARNESS_CODING_AGENT_DIR=/another/agent\0'), patch.object(verifier, 'process_identity') as identity:
             self.assertIsNone(verifier.owned_identity(10, Path('/fixture')))
             identity.assert_not_called()
 

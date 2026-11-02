@@ -6,7 +6,7 @@
 $ErrorActionPreference = 'Stop'
 
 $repo = (Get-Location).Path
-$scratch = Join-Path ([IO.Path]::GetTempPath()) ("prime-agent-channel-fallback-{0}" -f [Guid]::NewGuid().ToString('N'))
+$scratch = Join-Path ([IO.Path]::GetTempPath()) ("pyharness-channel-fallback-{0}" -f [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $scratch | Out-Null
 
 # The Python interpreter for the local http server (the install e2e's pattern).
@@ -20,10 +20,10 @@ $platform = 'win32-x64'
 # is a placeholder exe (the install only checks the payload exists).
 $payload = Join-Path $scratch 'payload'
 New-Item -ItemType Directory -Path $payload | Out-Null
-Set-Content -LiteralPath (Join-Path $payload 'prime-agent.exe') -Value 'stub payload for the channel-fallback regression test'
-$artifactFile = "prime-agent-$betaVersion-$platform.tar.gz"
+Set-Content -LiteralPath (Join-Path $payload 'pyharness.exe') -Value 'stub payload for the channel-fallback regression test'
+$artifactFile = "pyharness-$betaVersion-$platform.tar.gz"
 $artifact = Join-Path $scratch $artifactFile
-& tar -czf $artifact -C $payload prime-agent.exe
+& tar -czf $artifact -C $payload pyharness.exe
 if ($LASTEXITCODE -ne 0) { throw 'the stub artifact build failed (tar)' }
 $artifactSha = (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash.ToLower()
 
@@ -44,11 +44,11 @@ Set-Content -LiteralPath (Join-Path $channel 'beta.json') -Value ('{"version": "
 # from the server itself.
 function Invoke-Installer {
     param([string]$ChannelKnob, [string]$Prefix)
-    Remove-Item -Path 'Env:PRIME_AGENT_DOWNLOAD_BASE_URL', 'Env:PRIME_AGENT_RELEASE_CHANNEL', 'Env:PRIME_AGENT_RUST_PREFIX', 'Env:PRIME_AGENT_ALLOW_HTTP', 'Env:PRIME_AGENT_VERSION' -ErrorAction SilentlyContinue
-    $env:PRIME_AGENT_DOWNLOAD_BASE_URL = $baseUrl
-    $env:PRIME_AGENT_ALLOW_HTTP = '1'
-    $env:PRIME_AGENT_RUST_PREFIX = $Prefix
-    if ($ChannelKnob) { $env:PRIME_AGENT_RELEASE_CHANNEL = $ChannelKnob }
+    Remove-Item -Path 'Env:PYHARNESS_DOWNLOAD_BASE_URL', 'Env:PYHARNESS_RELEASE_CHANNEL', 'Env:PYHARNESS_RUST_PREFIX', 'Env:PYHARNESS_ALLOW_HTTP', 'Env:PYHARNESS_VERSION' -ErrorAction SilentlyContinue
+    $env:PYHARNESS_DOWNLOAD_BASE_URL = $baseUrl
+    $env:PYHARNESS_ALLOW_HTTP = '1'
+    $env:PYHARNESS_RUST_PREFIX = $Prefix
+    if ($ChannelKnob) { $env:PYHARNESS_RELEASE_CHANNEL = $ChannelKnob }
     $lines = @(& pwsh -NoProfile -File (Join-Path $repo 'install.ps1') 2>&1 | ForEach-Object { "$_" })
     return [pscustomobject]@{ Lines = $lines; Exit = $LASTEXITCODE }
 }
@@ -65,21 +65,21 @@ $server = Start-Process -FilePath $py -ArgumentList '-u','-m','http.server','0',
 # THE UV INSTALL IS ISOLATED (the reviewers' finding): ownership of a file
 # in the shared ~/.local/bin is unprovable, so the harness never lets the
 # installer touch the shared dir - install.ps1 honors
-# PRIME_AGENT_UV_BIN_DIR and the harness points it at its scratch.
+# PYHARNESS_UV_BIN_DIR and the harness points it at its scratch.
 # The kernel pre-warm's writes (the venv, uv's cache, uv's pythons) would
 # land in the real user profile too; the harness steers all of them into
 # its own scratch dir through the product's override knobs and restores
 # the caller's values in the cleanup (the discipline install.ps1 itself
 # runs).
-$callerKernelVenv = $env:PRIME_AGENT_KERNEL_VENV
+$callerKernelVenv = $env:PYHARNESS_KERNEL_VENV
 $callerUvCacheDir = $env:UV_CACHE_DIR
 $callerUvPythonDir = $env:UV_PYTHON_INSTALL_DIR
-$callerUvBinDir = $env:PRIME_AGENT_UV_BIN_DIR
+$callerUvBinDir = $env:PYHARNESS_UV_BIN_DIR
 try {
-    $env:PRIME_AGENT_KERNEL_VENV = Join-Path $scratch 'kernel-venv'
+    $env:PYHARNESS_KERNEL_VENV = Join-Path $scratch 'kernel-venv'
     $env:UV_CACHE_DIR = Join-Path $scratch 'uv-cache'
     $env:UV_PYTHON_INSTALL_DIR = Join-Path $scratch 'uv-python'
-    $env:PRIME_AGENT_UV_BIN_DIR = Join-Path $scratch 'uv-bin'
+    $env:PYHARNESS_UV_BIN_DIR = Join-Path $scratch 'uv-bin'
     # The port the server itself announced, then readiness is it answering
     # a request for this test's own channel (beta.json): bounded deadlines,
     # and a dead child fails fast instead of hanging the installer.
@@ -114,7 +114,7 @@ try {
             $run.Lines | Write-Host
             throw "$selection must refuse the missing stable artifact"
         }
-        if (Test-Path (Join-Path $prefix 'share\prime-agent\prime-agent.exe')) {
+        if (Test-Path (Join-Path $prefix 'share\pyharness\pyharness.exe')) {
             throw "$selection unexpectedly published a payload"
         }
     }
@@ -126,11 +126,11 @@ try {
         $runBeta.Lines | Write-Host
         throw 'the explicit beta install failed'
     }
-    $marker = Get-Content -LiteralPath (Join-Path $prefixBeta 'share\prime-agent\.prime-agent-install') -Raw
+    $marker = Get-Content -LiteralPath (Join-Path $prefixBeta 'share\pyharness\.pyharness-install') -Raw
     if ($marker -ne "install-rust.sh channel beta`nversion $betaVersion") { throw "unexpected beta marker: $marker" }
 
     # Publish stable and verify the production default selects its artifact.
-    $stableFile = "prime-agent-$stableVersion-$platform.tar.gz"
+    $stableFile = "pyharness-$stableVersion-$platform.tar.gz"
     $stableDir = Join-Path $channel "releases\v$stableVersion"
     New-Item -ItemType Directory -Path $stableDir -Force | Out-Null
     Copy-Item -LiteralPath (Join-Path $releaseDir $artifactFile) -Destination (Join-Path $stableDir $stableFile)
@@ -143,10 +143,10 @@ try {
         $runStable.Lines | Write-Host
         throw 'the default stable install failed'
     }
-    $marker = Get-Content -LiteralPath (Join-Path $prefixStable 'share\prime-agent\.prime-agent-install') -Raw
+    $marker = Get-Content -LiteralPath (Join-Path $prefixStable 'share\pyharness\.pyharness-install') -Raw
     if ($marker -ne "install-rust.sh channel stable`nversion $stableVersion") { throw "unexpected stable marker: $marker" }
     foreach ($prefix in @($prefixBeta, $prefixStable)) {
-        if (-not (Test-Path (Join-Path $prefix 'share\prime-agent\prime-agent.exe') -PathType Leaf)) { throw "missing payload in $prefix" }
+        if (-not (Test-Path (Join-Path $prefix 'share\pyharness\pyharness.exe') -PathType Leaf)) { throw "missing payload in $prefix" }
     }
 
     Write-Host "WIN_CHANNEL_SELECTION default=$stableVersion explicit-beta=$betaVersion; missing stable artifacts refused"
@@ -186,12 +186,12 @@ try {
         if ($envKey) { $envKey.Close() }
     }
     # The uv install needs no cleanup: it never left the scratch dir (the
-    # PRIME_AGENT_UV_BIN_DIR knob above steered the installer), and the
+    # PYHARNESS_UV_BIN_DIR knob above steered the installer), and the
     # user's ~/.local/bin was never touched at all.
-    $env:PRIME_AGENT_KERNEL_VENV = $callerKernelVenv
+    $env:PYHARNESS_KERNEL_VENV = $callerKernelVenv
     $env:UV_CACHE_DIR = $callerUvCacheDir
     $env:UV_PYTHON_INSTALL_DIR = $callerUvPythonDir
-    $env:PRIME_AGENT_UV_BIN_DIR = $callerUvBinDir
+    $env:PYHARNESS_UV_BIN_DIR = $callerUvBinDir
     Remove-Item -Recurse -Force $scratch -ErrorAction SilentlyContinue
     if ($pathCleanFailed) {
         throw 'could not clean the user PATH entries this test added'

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Assemble prime-agent release tarballs (Rust rewrite).
+"""Assemble pyharness release tarballs (Rust rewrite).
 
-Mirrors the TS release pipeline (`~/prime-agent/scripts/assemble-release-archives.mjs`)
+Mirrors the TS release pipeline (`~/pyharness/scripts/assemble-release-archives.mjs`)
 for the Rust workspace: stage the release binary plus the bundled kernel runtime,
 skills, docs, and license metadata into a scratch tree, pack a deterministic
 tarball with files at the tarball root, and emit `SHA256SUMS` plus a
@@ -24,9 +24,9 @@ one resolved commit per run; offline builds use
 
 `--binary` defaults to `<repo>/target/<target>/release/<binary-name>` (cross
 builds) and falls back to `<repo>/target/release/<binary-name>` (host builds),
-where the binary name is `prime-agent.exe` for the Windows MSVC target and
-`prime-agent` everywhere else (`binary_name_for_target`).
-`--runtime-dir` defaults to `<repo>/prime-agent-runtime` (the vendored sidecar
+where the binary name is `pyharness.exe` for the Windows MSVC target and
+`pyharness` everywhere else (`binary_name_for_target`).
+`--runtime-dir` defaults to `<repo>/pyharness-runtime` (the vendored sidecar
 from the kernel-packaging lane).
 Every archive includes a `package.json` version manifest beside the binary
 (TS installer parity: it is one of NATIVE_RELEASE_ASSETS).
@@ -36,11 +36,11 @@ given, that manifest's `version` is
 was built from via `--version`; the manifest records the commit too. The
 archive name keeps the bare `<version>` so rolling releases overwrite assets.
 
-Archive naming: `prime-agent-<version>-<platform-alias>.tar.gz` (TS
+Archive naming: `pyharness-<version>-<platform-alias>.tar.gz` (TS
 `assemble-release-archives.mjs` parity, e.g.
-`prime-agent-0.1.0-linux-x64.tar.gz`) — the name the update flow's channel
-manifest requires: `pa-core::update::release` keeps a row only when its `file`
-is exactly `prime-agent-<version>-<platform>.tar.gz`, and the promoted
+`pyharness-0.1.0-linux-x64.tar.gz`) — the name the update flow's channel
+manifest requires: `ph-core::update::release` keeps a row only when its `file`
+is exactly `pyharness-<version>-<platform>.tar.gz`, and the promoted
 latest.json/beta.json reference these assets verbatim. The target triple stays
 in the manifest entry's `target` field (provenance, SBOM keying).
 """
@@ -67,12 +67,12 @@ from native_compat import stage_native_compat
 # Tarball-root payload order mirrors the TS `binaryAssets` list so the
 # installer lane can extract both distributions identically. The binary
 # entry name is platform-dependent (`binary_name_for_target`: the MSVC
-# build ships `prime-agent.exe`), so the list names the binary slot via
+# build ships `pyharness.exe`), so the list names the binary slot via
 # the placeholder resolved in `main`/`stage_tree`.
-BINARY_PLACEHOLDER = "prime-agent"
+BINARY_PLACEHOLDER = "pyharness"
 STAGED_ENTRIES = [
     BINARY_PLACEHOLDER,
-    "prime-agent-runtime",
+    "pyharness-runtime",
     "skills",
     "LICENSE",
     "README.md",
@@ -85,18 +85,18 @@ STAGED_ENTRIES = [
 
 
 def binary_name_for_target(target: str) -> str:
-    """The staged binary name for `target`: `prime-agent.exe` on the MSVC
+    """The staged binary name for `target`: `pyharness.exe` on the MSVC
     Windows target (the name Cargo's linker emits and the installer's
-    `.exe`-aware layout expects), `prime-agent` everywhere else.
+    `.exe`-aware layout expects), `pyharness` everywhere else.
     """
     if "-windows-" in target:
-        return "prime-agent.exe"
-    return "prime-agent"
+        return "pyharness.exe"
+    return "pyharness"
 
 # Shipped-content policy: what the installed tree carries beyond the binary.
 #
 # The runtime sidecar ships only what the kernel consumes. The venv
-# bootstrap installs it with `uv pip install <payload>/prime-agent-runtime`
+# bootstrap installs it with `uv pip install <payload>/pyharness-runtime`
 # (uv's pip interface builds the hatchling wheel, whose target packages
 # only `src/rlm`), and the venv cache identity hashes `src/rlm/*.py` + the
 # packaged machine library under `src/rlm/machines` + `pyproject.toml` — so
@@ -131,7 +131,7 @@ TARGET_ALIASES = {
 
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$")
 
-# Split-debug decoder sidecars (prime-agent-*.debug / *.debug.gz) are release
+# Split-debug decoder sidecars (pyharness-*.debug / *.debug.gz) are release
 # assets for offline symbolication, NEVER install payload: the installer and
 # the update channel extract the tarball verbatim, so a decoder inside it
 # would ship DWARF bytes to every install. release.yml uploads the decoder
@@ -240,7 +240,7 @@ def continuous_version(version: str, sha: str) -> str:
 
     The bare `--version` keeps the archive/asset names stable (the rolling
     release overwrites same-named assets); only the binary's runtime version
-    manifest carries the commit, so `prime-agent --version` reports exactly
+    manifest carries the commit, so `pyharness --version` reports exactly
     what was built.
     """
     stamped = f"{version}-{CONTINUOUS_SUFFIX}.{sha.lower()}"
@@ -284,10 +284,10 @@ def stage_tree(staging: Path, args: argparse.Namespace, stamped_version: str | N
     """
     binary_name = binary_name_for_target(args.target)
     binary = resolve_binary(args)
-    runtime_dir = args.runtime_dir or (args.repo_root / "prime-agent-runtime")
+    runtime_dir = args.runtime_dir or (args.repo_root / "pyharness-runtime")
     sources = {
         binary_name: binary,
-        "prime-agent-runtime": runtime_dir,
+        "pyharness-runtime": runtime_dir,
         "skills": args.repo_root / "skills",
         "LICENSE": args.repo_root / "LICENSE",
         "README.md": args.repo_root / "README.md",
@@ -295,7 +295,7 @@ def stage_tree(staging: Path, args: argparse.Namespace, stamped_version: str | N
     if not runtime_dir.joinpath("pyproject.toml").is_file():
         fail(
             "kernel runtime sidecar not found at "
-            f"{runtime_dir} (expected prime-agent-runtime with pyproject.toml); "
+            f"{runtime_dir} (expected pyharness-runtime with pyproject.toml); "
             "pass --runtime-dir or merge the kernel-packaging lane"
         )
     for name, source in sources.items():
@@ -303,7 +303,7 @@ def stage_tree(staging: Path, args: argparse.Namespace, stamped_version: str | N
         if not source.exists():
             fail(f"release payload entry {name!r} missing at {source}")
         if source.is_dir():
-            if name == "prime-agent-runtime":
+            if name == "pyharness-runtime":
                 copy_runtime_tree(source, target_path)
             elif name == "skills":
                 shutil.copytree(source, target_path, ignore=lambda _directory, names: {
@@ -327,7 +327,7 @@ def stage_tree(staging: Path, args: argparse.Namespace, stamped_version: str | N
         fail(
             "missing bundled catalog assets: run "
             "`python3 scripts/release/bundle_catalog.py generate "
-            "--catalog-dir <prime-agent-catalog>` (CI: --network; offline "
+            "--catalog-dir <pyharness-catalog>` (CI: --network; offline "
             "builds: --fixture) and pass --catalog-assets <dir>"
         )
     catalog_assets = Path(args.catalog_assets)
@@ -337,11 +337,11 @@ def stage_tree(staging: Path, args: argparse.Namespace, stamped_version: str | N
     payload = [binary_name if entry == BINARY_PLACEHOLDER else entry
                for entry in STAGED_ENTRIES]
     manifest = {
-        "name": "prime-agent",
+        "name": "pyharness",
         "version": stamped_version or args.version,
-        "description": "Prime Agent: the RLM coding agent (Rust build)",
-        "bin": {"prime-agent": binary_name},
-        "piConfig": {"name": "prime-agent", "configDir": ".prime/agent"},
+        "description": "pyharness: the RLM coding agent (Rust build)",
+        "bin": {"pyharness": binary_name},
+        "piConfig": {"name": "pyharness", "configDir": ".pyharness"},
     }
     if stamped_version is not None:
         manifest["commit"] = args.sha
@@ -378,7 +378,7 @@ def _deterministic_member(member: tarfile.TarInfo) -> tarfile.TarInfo:
     member.mtime = 0
     if member.isdir():
         member.mode = 0o755
-    elif member.name == "prime-agent" or member.name == "prime-agent.exe":
+    elif member.name == "pyharness" or member.name == "pyharness.exe":
         member.mode = 0o755
     else:
         member.mode = 0o644
@@ -439,13 +439,13 @@ def decoder_facts(args: argparse.Namespace) -> dict | None:
                  "--decoder from split_debug.py")
         if debug_sections(resolve_binary(args)):
             fail(f"Linux shipped ELF still has DWARF: {args.binary}")
-        expected = f"prime-agent-{args.version}-{TARGET_ALIASES[args.target]}.debug.gz"
+        expected = f"pyharness-{args.version}-{TARGET_ALIASES[args.target]}.debug.gz"
         decoder = args.decoder
         if decoder.name != expected or not decoder.is_file():
             fail(f"missing required Linux decoder {expected}")
         binary = resolve_binary(args)
-        with tempfile.TemporaryDirectory(prefix="prime-agent-decoder-") as tmp:
-            uncompressed = Path(tmp) / "prime-agent.debug"
+        with tempfile.TemporaryDirectory(prefix="pyharness-decoder-") as tmp:
+            uncompressed = Path(tmp) / "pyharness.debug"
             try:
                 with gzip.open(decoder, "rb") as src, uncompressed.open("wb") as dst:
                     shutil.copyfileobj(src, dst)
@@ -475,11 +475,11 @@ def main() -> int:
     decoder = decoder_facts(args)
     out_dir = (args.out_dir or args.repo_root / "target" / "release" / "dist").resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
-    staging = Path(tempfile.mkdtemp(prefix="prime-agent-archive-"))
+    staging = Path(tempfile.mkdtemp(prefix="pyharness-archive-"))
     try:
         facts = stage_tree(staging, args, stamped_version)
         archive_name = (
-            f"prime-agent-{args.version}-{TARGET_ALIASES[args.target]}.tar.gz"
+            f"pyharness-{args.version}-{TARGET_ALIASES[args.target]}.tar.gz"
         )
         archive_path = out_dir / archive_name
         pack_tarball(staging, archive_path, facts["payload"])

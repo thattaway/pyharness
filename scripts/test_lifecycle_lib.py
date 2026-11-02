@@ -61,14 +61,14 @@ class CleanupTests(unittest.TestCase):
         scope = lifecycle.OwnedProcesses(Path('/fixture/bin'), Path('/fixture'), Path('/fixture/d.sock'))
         scope.direct[12] = ('proc:4', [b'/fixture/bin'])
         with patch.object(lifecycle, 'process_identity', return_value=('proc:4', 'S')), \
-                patch.object(Path, 'read_bytes', return_value=b'PA_GOAL_FIXTURE_ID=/foreign\0'):
+                patch.object(Path, 'read_bytes', return_value=b'PH_GOAL_FIXTURE_ID=/foreign\0'):
             self.assertFalse(scope.ownership(12, 'proc:4'))
 
     def test_same_tag_different_direct_argv_never_owned(self):
         scope = lifecycle.OwnedProcesses(Path('/fixture/bin'), Path('/fixture'), Path('/fixture/d.sock'))
         scope.direct[12] = ('proc:4', [b'/fixture/bin', b'--mode', b'daemon'])
         with patch.object(lifecycle, 'process_identity', return_value=('proc:4', 'S')), \
-                patch.object(Path, 'read_bytes', side_effect=[b'PA_GOAL_FIXTURE_ID=/fixture\0', b'/fixture/bin\0different\0']):
+                patch.object(Path, 'read_bytes', side_effect=[b'PH_GOAL_FIXTURE_ID=/fixture\0', b'/fixture/bin\0different\0']):
             self.assertFalse(scope.ownership(12, 'proc:4'))
 
     def test_kernel_requires_verified_owner(self):
@@ -77,7 +77,7 @@ class CleanupTests(unittest.TestCase):
         for owner, expected in ((12, True), (99, False)):
             with patch.object(lifecycle, 'process_identity', return_value=('proc:8', 'S')), \
                     patch.object(Path, 'read_bytes', side_effect=[
-                        ('PA_GOAL_FIXTURE_ID=/fixture\0PRIME_AGENT_KERNEL_OWNER_PID=%s\0' % owner).encode(), b'/usr/bin/python3\0kernel\0']):
+                        ('PH_GOAL_FIXTURE_ID=/fixture\0PYHARNESS_KERNEL_OWNER_PID=%s\0' % owner).encode(), b'/usr/bin/python3\0kernel\0']):
                 self.assertEqual(scope.ownership(20, 'proc:8'), expected)
 
 

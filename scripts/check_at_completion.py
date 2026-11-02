@@ -231,7 +231,7 @@ def main():
     try:
         assert sys.platform == 'linux', 'hosted Linux fixture only'
         with tempfile.TemporaryDirectory(prefix='pa-at-', dir='/tmp') as folder:
-            binary = Path(os.environ['PA_RUST_BINARY']).resolve()
+            binary = Path(os.environ['PH_RUST_BINARY']).resolve()
             receipt.update(binary_sha256=digest(binary), hello_discovery={}, cases={})
             hello = discover_hello(binary, Path(folder) / 'hello', receipt['hello_discovery'])
             for case in CASES:

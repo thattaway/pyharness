@@ -1,7 +1,7 @@
 # The performance-test lane: a nightly + opt-in-per-PR benchmark of the
 # interactive surfaces (cold/warm start, agents view, open/switch session,
 # @ completion) over deterministic fake stores, driven through the REAL
-# release binary under a pty by `crates/pa-perf`.
+# release binary under a pty by `crates/ph-perf`.
 #
 # Triggers:
 #   schedule      — nightly on main (the label path is how a branch proves
@@ -17,13 +17,13 @@
 #                   runners hard.
 #
 # Job graph:
-#   build  — release prime-agent + pa-perf once, uploaded as one artifact
+#   build  — release pyharness + ph-perf once, uploaded as one artifact
 #            (every bench leg downloads the same bytes).
 #   bench  — one matrix leg per corpus profile: generate the corpus
 #            (cold + warm), bootstrap the kernel venv (the same prep
 #            ci.yml's kernel e2e shards use), run every scenario 10x,
 #            upload the result JSONs.
-#   report — aggregate every result against crates/pa-perf/baseline.json:
+#   report — aggregate every result against crates/ph-perf/baseline.json:
 #            the $GITHUB_STEP_SUMMARY table (scenario, profile, median,
 #            p95, baseline, delta) always prints deltas and fails ONLY on a
 #            >2x median regression; scenarios marked report-only in the
@@ -77,14 +77,14 @@ jobs:
           cache-on-failure: true
           save-if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') }}
       - name: Build (release, locked)
-        run: cargo build --release --locked -p pa-cli --bin prime-agent -p pa-perf --bin pa-perf
+        run: cargo build --release --locked -p ph-cli --bin pyharness -p ph-perf --bin ph-perf
       - name: Upload the binaries
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: perf-bins
           path: |
-            target/release/prime-agent
-            target/release/pa-perf
+            target/release/pyharness
+            target/release/ph-perf
           if-no-files-found: error
 
   bench:
@@ -97,7 +97,7 @@ jobs:
       matrix:
         profile: [small, medium, large, xl]
     steps:
-      # The checkout provides the packaged kernel runtime (prime-agent-runtime/)
+      # The checkout provides the packaged kernel runtime (pyharness-runtime/)
       # the release binary resolves through PI_PACKAGE_DIR, plus skills/.
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -109,8 +109,8 @@ jobs:
       - name: Stage the binaries
         run: |
           set -euo pipefail
-          install -Dm755 bins/prime-agent "$HOME/.local/bin/prime-agent"
-          install -Dm755 bins/pa-perf "$HOME/.local/bin/pa-perf"
+          install -Dm755 bins/pyharness "$HOME/.local/bin/pyharness"
+          install -Dm755 bins/ph-perf "$HOME/.local/bin/ph-perf"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Install uv (the kernel venv bootstrap below uses it)
         run: |
@@ -122,8 +122,8 @@ jobs:
       - name: Bootstrap the kernel venv
         env:
           PI_PACKAGE_DIR: ${{ github.workspace }}
-        run: prime-agent --prime-agent-bootstrap
-      # One driver call: pa-perf run generates the cold and warm corpora,
+        run: pyharness --pyharness-bootstrap
+      # One driver call: ph-perf run generates the cold and warm corpora,
       # routes every scenario to the corpus state it needs, and writes one
       # result JSON per scenario into <out>/results/.
       - name: Run the scenarios
@@ -131,8 +131,8 @@ jobs:
           PI_PACKAGE_DIR: ${{ github.workspace }}
         run: |
           set -euo pipefail
-          pa-perf run \
-            --binary "$HOME/.local/bin/prime-agent" \
+          ph-perf run \
+            --binary "$HOME/.local/bin/pyharness" \
             --profile ${{ matrix.profile }} \
             --out "$RUNNER_TEMP/perf" \
             --runs 10
@@ -177,9 +177,9 @@ jobs:
       - name: Compare against the baseline
         run: |
           set -euo pipefail
-          install -Dm755 bins/pa-perf "$HOME/.local/bin/pa-perf"
+          install -Dm755 bins/ph-perf "$HOME/.local/bin/ph-perf"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          pa-perf report \
-            --baseline crates/pa-perf/baseline.json \
+          ph-perf report \
+            --baseline crates/ph-perf/baseline.json \
             --markdown "$GITHUB_STEP_SUMMARY" \
             --results results/*.json

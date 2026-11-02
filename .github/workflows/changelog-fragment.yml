@@ -37,7 +37,7 @@ jobs:
             });
             // What the release ships: the binary's sources (vendor/ is a patched dependency,
             // install-rust.sh is compiled in) and the payload assemble_artifacts.py stages.
-            const shipped = ["crates/", "vendor/", "install-rust.sh", "prime-agent-runtime/", "skills/"];
+            const shipped = ["crates/", "vendor/", "install-rust.sh", "pyharness-runtime/", "skills/"];
             const isShipped = (path) => shipped.some((prefix) => path.startsWith(prefix)) && !/\/tests?\//.test(path);
             if (!files.some((f) => isShipped(f.filename) || (f.previous_filename !== undefined && isShipped(f.previous_filename)))) {
               core.info("No shipped paths changed; no changelog fragment needed.");

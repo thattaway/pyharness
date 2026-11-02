@@ -100,7 +100,7 @@ def main():
         'not_verified': ['auto-review HTTP execution', 'TUI frames',
                          'full HTTP or daemon wire-byte equality', 'live Prime Inference']}
     try:
-        binary = Path(os.environ['PA_RUST_BINARY']).resolve()
+        binary = Path(os.environ['PH_RUST_BINARY']).resolve()
         receipt['binary_sha256'] = digest(binary)
         with tempfile.TemporaryDirectory(prefix='pa-refine-identity-', dir='/tmp') as folder:
             observe(binary, Path(folder), receipt)

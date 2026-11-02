@@ -122,7 +122,7 @@ def change(current, previous, *, percentage_points=False):
 def render_report(points, day):
     yesterday, last_week, last_month = (day - timedelta(days=n) for n in (1, 7, 30))
     title_date = f"{day:%b} {day.day}, {day.year}"
-    lines = [f"*Prime Agent Daily Stats ({title_date})*", ""]
+    lines = [f"*pyharness Daily Stats ({title_date})*", ""]
     values = points["DAU"]
     lines.append(f"• *DAU: {values[day]:,.0f}* · "
                  f"{change(values[day], values[yesterday])} vs yesterday · "
@@ -198,7 +198,7 @@ def main():
                 if not token:
                     raise ReportError("POSTHOG_PERSONAL_API_KEY is missing.")
                 response = json.loads(request(POSTHOG_URL, {
-                    "query": build_query(day), "name": "Prime Agent daily Slack stats",
+                    "query": build_query(day), "name": "pyharness daily Slack stats",
                     "refresh": "force_blocking", "async": False,
                 }, token=token, service="PostHog"))
             text = render_report(parse_results(response, day), day)

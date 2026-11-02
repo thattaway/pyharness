@@ -46,7 +46,7 @@ def admitted_probe(body):
 
 def owned_processes(root):
     expected = {('PI_CODING_AGENT_DIR=' + str(root / 'agent')).encode(),
-                ('PRIME_AGENT_CODING_AGENT_DIR=' + str(root / 'agent')).encode()}
+                ('PYHARNESS_CODING_AGENT_DIR=' + str(root / 'agent')).encode()}
     found = {}
     for path in Path('/proc').iterdir():
         if not path.name.isdigit():
@@ -373,7 +373,7 @@ def main():
     try:
         assert sys.platform == 'linux', 'hosted Linux CI only'
         with tempfile.TemporaryDirectory(prefix='pa-ledger-', dir='/tmp') as temporary:
-            binary = Path(os.environ['PA_RUST_BINARY']).resolve()
+            binary = Path(os.environ['PH_RUST_BINARY']).resolve()
             observed = result['run'] = {'binary_sha256': digest(binary)}
             observed['contract'] = run_case(binary, Path(temporary) / 'rust', observed)
         result['verified'] = True

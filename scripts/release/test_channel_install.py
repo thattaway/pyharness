@@ -36,22 +36,22 @@ def main() -> int:
             with release_server(feed) as base:
                 env = isolated_environment(root / "user", base)
                 prefix = root / "user" / "prefix with spaces"
-                env.update(PRIME_AGENT_RUST_PREFIX=str(prefix), PRIME_AGENT_ALLOW_HTTP="1")
-                state = Path(env["PRIME_AGENT_CODING_AGENT_DIR"])
+                env.update(PYHARNESS_RUST_PREFIX=str(prefix), PYHARNESS_ALLOW_HTTP="1")
+                state = Path(env["PYHARNESS_CODING_AGENT_DIR"])
                 witnesses = {"settings.json": '{}\n', "auth.json": '{}\n',
                              "sessions/preserved.jsonl": '{"migrationWitness":"saved session"}\n'}
                 for name, content in witnesses.items():
                     path = state / name
                     path.parent.mkdir(parents=True, exist_ok=True)
                     path.write_text(content)
-                command = ["bash", "-o", "pipefail", "-c", 'curl -fsSL "$PRIME_AGENT_DOWNLOAD_BASE_URL/install.sh" | sh']
+                command = ["bash", "-o", "pipefail", "-c", 'curl -fsSL "$PYHARNESS_DOWNLOAD_BASE_URL/install.sh" | sh']
                 for _ in range(2):
                     report["steps"].append(execute(command, env))
-                    probe = execute([str(prefix / "bin/prime-agent"), "--version"], env)
+                    probe = execute([str(prefix / "bin/pyharness"), "--version"], env)
                     report["steps"].append(probe)
                     if probe["stdout"].strip() != version:
                         raise ValueError("Installed launcher did not report channel version")
-                    report["steps"].append(execute([str(prefix / "bin/prime-agent"), "--help"], env))
+                    report["steps"].append(execute([str(prefix / "bin/pyharness"), "--help"], env))
                     for name, content in witnesses.items():
                         if (state / name).read_text() != content:
                             raise ValueError(f"Installer changed user state: {name}")

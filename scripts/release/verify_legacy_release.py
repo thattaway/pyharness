@@ -26,8 +26,8 @@ def main() -> int:
     version = args.previous_version
     if version not in {"0.9.5", "0.9.6", "0.9.7", "0.9.8"}:
         parser.error("previous version must be a published native TS release (0.9.5–0.9.8)")
-    name = f"prime-agent-{version}-{platform}.tar.gz"
-    base = f"https://github.com/PrimeIntellect-ai/prime-agent/releases/download/v{version}"
+    name = f"pyharness-{version}-{platform}.tar.gz"
+    base = f"https://github.com/thattaway/pyharness/releases/download/v{version}"
     with tempfile.TemporaryDirectory(prefix="prime-legacy-release-") as temporary:
         root = Path(temporary)
         for filename in (name, "SHA256SUMS"):

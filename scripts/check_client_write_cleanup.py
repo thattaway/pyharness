@@ -82,7 +82,7 @@ class WireClient(Client):
 
 def owned_processes(root):
     """Linux hosted receipt: exact unique fixture agent-dir environment ownership."""
-    expected = ('PRIME_AGENT_CODING_AGENT_DIR=' + str(root / 'agent')).encode()
+    expected = ('PYHARNESS_CODING_AGENT_DIR=' + str(root / 'agent')).encode()
     owned = []
     for directory in Path('/proc').iterdir():
         if directory.name.isdigit():
@@ -263,7 +263,7 @@ def main():
         'not_covered': 'admission cancellation races or direct worker attach-state introspection'}
     try:
         with tempfile.TemporaryDirectory(prefix='pa-write-cleanup-', dir='/tmp') as folder:
-            binary = Path(os.environ['PA_RUST_BINARY']).resolve()
+            binary = Path(os.environ['PH_RUST_BINARY']).resolve()
             receipt['binary_sha256'] = digest(binary)
             observed = receipt['case'] = {}
             run_case(binary, Path(folder) / 'rust', observed)

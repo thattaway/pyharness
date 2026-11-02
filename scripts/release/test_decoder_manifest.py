@@ -32,9 +32,9 @@ class DecoderManifest(unittest.TestCase):
             root = Path(tmp)
             repo = root / "repo"
             repo.mkdir()
-            for directory in ("prime-agent-runtime", "skills"):
+            for directory in ("pyharness-runtime", "skills"):
                 (repo / directory).mkdir()
-            (repo / "prime-agent-runtime/pyproject.toml").write_text("[project]\nname = 'fixture'\nversion = '0.1.0'\n")
+            (repo / "pyharness-runtime/pyproject.toml").write_text("[project]\nname = 'fixture'\nversion = '0.1.0'\n")
             (repo / "LICENSE").write_text("fixture\n")
             (repo / "README.md").write_text("fixture\n")
             catalog = root / "catalog"
@@ -45,8 +45,8 @@ class DecoderManifest(unittest.TestCase):
                 source = root / f"{alias}.c"
                 source.write_text(f"int main(void) {{ return {len(alias)}; }}\n")
                 run("gcc", "-g", "-Wl,--build-id", "-o", str(binary), str(source))
-                shipped = root / alias / "prime-agent"
-                decoder = dist / f"prime-agent-0.1.0-{alias}.debug.gz"
+                shipped = root / alias / "pyharness"
+                decoder = dist / f"pyharness-0.1.0-{alias}.debug.gz"
                 run(sys.executable, str(SPLITTER), "--binary", str(binary),
                     "--shipped", str(shipped), "--out", str(dist),
                     "--version", "0.1.0", "--target", target)

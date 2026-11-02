@@ -11,16 +11,16 @@ const os = require("node:os");
 const path = require("node:path");
 const packageRoot = path.resolve(__dirname, "../..");
 const metadata = require(path.join(packageRoot, "package.json"));
-const prefix = path.resolve(process.env.PRIME_AGENT_RUST_PREFIX || path.join(os.homedir(), ".local"));
-// npm may recreate prefix/bin/prime-agent as this package's symlink on every
+const prefix = path.resolve(process.env.PYHARNESS_RUST_PREFIX || path.join(os.homedir(), ".local"));
+// npm may recreate prefix/bin/pyharness as this package's symlink on every
 // reinstall. Invoke the payload directly, never that mutually managed path.
-const executable = path.join(prefix, "share", "prime-agent", "prime-agent");
+const executable = path.join(prefix, "share", "pyharness", "pyharness");
 const args = process.argv.slice(2);
 const coordinator = args.includes("--internal-update-restart-coordinator");
-const delegatedUpdate = process.env.PRIME_AGENT_INTERNAL_TS_UPDATE === "1";
+const delegatedUpdate = process.env.PYHARNESS_INTERNAL_TS_UPDATE === "1";
 // A delegated TS updater may spawn the new bridge's restart coordinator. That
 // coordinator must perform migration, never delegate back into the TS updater.
-delete process.env.PRIME_AGENT_INTERNAL_TS_UPDATE;
+delete process.env.PYHARNESS_INTERNAL_TS_UPDATE;
 let updateRequested = coordinator;
 // Recognize updates after leading global options without interpreting prompt
 // text such as `--print update` as an update retry. The value options mirror
@@ -42,19 +42,19 @@ for (let index = 0; !coordinator && index < args.length; index++) {
            !args[index + 1].startsWith("-") && !args[index + 1].startsWith("@")) index++;
 }
 // Keep migration state outside the payload replaced by native updates.
-const receiptDir = path.join(prefix, "share", ".prime-agent-npm-bridge");
+const receiptDir = path.join(prefix, "share", ".pyharness-npm-bridge");
 const receipt = path.join(receiptDir, metadata.version);
 const failedReceipt = `${receipt}.failed`;
 const legacySocketMarker = path.join(receiptDir, "legacy-daemon-socket");
-const legacySocket = path.join(os.tmpdir(), `prime-agent-${process.getuid()}`, "daemon.sock");
-const rustSocket = path.join(process.env.TMPDIR || "/tmp", `prime-agent-rust-${process.getuid()}`, "daemon.sock");
-// Same rule as pa-daemon socket_dir(): non-Linux sun_path caps a unix
-// socket at 103 bytes, so a too-deep TMPDIR pins /tmp/prime-agent-rust-<uid>.
+const legacySocket = path.join(os.tmpdir(), `pyharness-${process.getuid()}`, "daemon.sock");
+const rustSocket = path.join(process.env.TMPDIR || "/tmp", `pyharness-rust-${process.getuid()}`, "daemon.sock");
+// Same rule as ph-daemon socket_dir(): non-Linux sun_path caps a unix
+// socket at 103 bytes, so a too-deep TMPDIR pins /tmp/pyharness-rust-<uid>.
 const pinnedRustSocket = process.platform !== "linux" && Buffer.byteLength(rustSocket) > 103
-  ? path.join("/tmp", `prime-agent-rust-${process.getuid()}`, "daemon.sock") : rustSocket;
+  ? path.join("/tmp", `pyharness-rust-${process.getuid()}`, "daemon.sock") : rustSocket;
 const nativeEnvironment = { ...process.env,
-  PRIME_AGENT_CODING_AGENT_DIR: process.env.PRIME_AGENT_CODING_AGENT_DIR || path.join(os.homedir(), ".prime/agent"),
-  PRIME_AGENT_DAEMON_SOCKET: process.env.PRIME_AGENT_DAEMON_SOCKET ||
+  PYHARNESS_CODING_AGENT_DIR: process.env.PYHARNESS_CODING_AGENT_DIR || path.join(os.homedir(), ".pyharness"),
+  PYHARNESS_DAEMON_SOCKET: process.env.PYHARNESS_DAEMON_SOCKET ||
     (coordinator || fs.existsSync(legacySocketMarker) ? legacySocket : pinnedRustSocket),
 };
 delete nativeEnvironment.PI_PACKAGE_DIR;
@@ -149,19 +149,19 @@ function versionAtLeast(actual, wanted) {
 }
 
 async function launchFallback(reason) {
-  const fallback = metadata.primeAgentTypeScriptFallback;
+  const fallback = metadata.pyharnessTypeScriptFallback;
   if (!fallback) throw new Error("The TypeScript recovery payload is missing from this package");
   const fallbackRoot = path.join(packageRoot, fallback.directory);
   const fallbackMetadata = JSON.parse(fs.readFileSync(path.join(fallbackRoot, "package.json"), "utf8"));
-  if (fallbackMetadata.name !== "prime-agent" || fallbackMetadata.version !== fallback.version) {
+  if (fallbackMetadata.name !== "pyharness" || fallbackMetadata.version !== fallback.version) {
     throw new Error("The TypeScript recovery payload has an unexpected package identity");
   }
-  if (delegatedUpdate) console.error("prime-agent: Checking the latest release with the preserved TypeScript updater.");
+  if (delegatedUpdate) console.error("pyharness: Checking the latest release with the preserved TypeScript updater.");
   else {
-    console.error(`prime-agent: Rust ${metadata.version} migration failed: ${reason}`);
-    console.error(`prime-agent: Continuing with TypeScript ${fallback.version}. Run prime-agent update to retry the Rust upgrade.`);
+    console.error(`pyharness: Rust ${metadata.version} migration failed: ${reason}`);
+    console.error(`pyharness: Continuing with TypeScript ${fallback.version}. Run pyharness update to retry the Rust upgrade.`);
   }
-  const environment = { ...process.env, PI_PACKAGE_DIR: fallbackRoot, PRIME_AGENT_INSTALL_METHOD: "node" };
+  const environment = { ...process.env, PI_PACKAGE_DIR: fallbackRoot, PYHARNESS_INSTALL_METHOD: "node" };
   const modules = path.dirname(packageRoot);
   if (path.basename(modules) === "node_modules" && path.basename(path.dirname(modules)) === "lib") {
     // The immutable fallback is nested below the real global package. Restore
@@ -203,7 +203,7 @@ async function main() {
     // genuine updater fetch the current bridge package (and its installer),
     // then verify native activation instead of trusting TS's warning-only exit.
     const result = await run(process.execPath, [path.join(packageRoot, "dist/bundle/cli.js"), ...args], {
-      env: { ...process.env, PRIME_AGENT_INTERNAL_TS_UPDATE: "1" },
+      env: { ...process.env, PYHARNESS_INTERNAL_TS_UPDATE: "1" },
       detached: true, timeoutMs: 600000,
     });
     if (result.timedOut) throw new Error("The TypeScript release updater timed out before Rust activation");
@@ -212,7 +212,7 @@ async function main() {
     const probe = spawnSync(executable, ["--version"], { env: nativeEnvironment,
       stdio: ["ignore", "pipe", "ignore"], encoding: "utf8", timeout: 5000, maxBuffer: 65536 });
     const found = probe.status === 0 && probe.stdout.match(/\b(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/);
-    if (!current.primeAgentRustBridge || !fs.existsSync(path.join(receiptDir, current.version)) ||
+    if (!current.pyharnessRustBridge || !fs.existsSync(path.join(receiptDir, current.version)) ||
         !found || !versionAtLeast(found[1], current.version)) {
       throw new Error("The release updater did not activate a working Rust release; TypeScript recovery remains available");
     }
@@ -231,7 +231,7 @@ async function main() {
   const socketIndex = args.indexOf("--daemon-socket");
   const now = new Date().toISOString();
   const status = { version: 1, requestId: randomUUID(),
-    socketPath: socketIndex >= 0 ? args[socketIndex + 1] : nativeEnvironment.PRIME_AGENT_DAEMON_SOCKET,
+    socketPath: socketIndex >= 0 ? args[socketIndex + 1] : nativeEnvironment.PYHARNESS_DAEMON_SOCKET,
     phase: "starting", coordinator: { pid: process.pid },
     counts: { total: 0, restored: 0, resumed: 0, failed: 0 },
     startedAt: now, updatedAt: now, heartbeatAt: now };
@@ -290,15 +290,15 @@ async function main() {
     if (!installed) {
       // The TS restart coordinator restores sessions in the TS namespace.
       // Persist that choice in the native installer so both entrypoints agree.
-      if (!process.env.PRIME_AGENT_DAEMON_SOCKET) nativeEnvironment.PRIME_AGENT_DAEMON_SOCKET = legacySocket;
+      if (!process.env.PYHARNESS_DAEMON_SOCKET) nativeEnvironment.PYHARNESS_DAEMON_SOCKET = legacySocket;
       const result = await run("sh", [path.join(packageRoot, "install-rust.sh")], {
         // Never remove the npm package while its updater/restart coordinator is running.
-        env: { ...nativeEnvironment, PRIME_AGENT_VERSION: metadata.version,
-          PRIME_AGENT_RELEASE_CHANNEL: metadata.primeAgentReleaseChannel,
-          PRIME_AGENT_RUST_PREFIX: prefix, PRIME_AGENT_PRESERVE_NPM_BRIDGE: "1",
-          PRIME_AGENT_NPM_BRIDGE_ENTRYPOINT: path.join(packageRoot, "dist", "bundle", "cli.js"),
-          PRIME_AGENT_USE_LEGACY_DAEMON_SOCKET: "1",
-          PRIME_AGENT_DEFER_DAEMON_STOP: coordinator ? "1" : "0" },
+        env: { ...nativeEnvironment, PYHARNESS_VERSION: metadata.version,
+          PYHARNESS_RELEASE_CHANNEL: metadata.pyharnessReleaseChannel,
+          PYHARNESS_RUST_PREFIX: prefix, PYHARNESS_PRESERVE_NPM_BRIDGE: "1",
+          PYHARNESS_NPM_BRIDGE_ENTRYPOINT: path.join(packageRoot, "dist", "bundle", "cli.js"),
+          PYHARNESS_USE_LEGACY_DAEMON_SOCKET: "1",
+          PYHARNESS_DEFER_DAEMON_STOP: coordinator ? "1" : "0" },
         stdio: ["ignore", process.stderr, process.stderr],
         detached: true,
       });
@@ -325,8 +325,8 @@ async function main() {
     clearInterval(heartbeat);
     if (ownsLock && fs.readFileSync(lockPath, "utf8") === lockOwner) fs.unlinkSync(lockPath);
   }
-  if (!process.env.PRIME_AGENT_DAEMON_SOCKET && fs.existsSync(legacySocketMarker)) {
-    nativeEnvironment.PRIME_AGENT_DAEMON_SOCKET = legacySocket;
+  if (!process.env.PYHARNESS_DAEMON_SOCKET && fs.existsSync(legacySocketMarker)) {
+    nativeEnvironment.PYHARNESS_DAEMON_SOCKET = legacySocket;
   }
   finish(await run(executable, args, { env: nativeEnvironment }));
 }
@@ -336,16 +336,16 @@ main().catch(async error => {
     fs.mkdirSync(receiptDir, { recursive: true });
     fs.writeFileSync(failedReceipt, `${error.message}\n`);
   } catch (recordError) {
-    console.error(`prime-agent: Could not record the failed migration: ${recordError.message}`);
+    console.error(`pyharness: Could not record the failed migration: ${recordError.message}`);
   }
   if (updateRequested) {
-    console.error(`prime-agent: Rust migration failed: ${error.message}. TypeScript recovery remains available on the next launch.`);
+    console.error(`pyharness: Rust migration failed: ${error.message}. TypeScript recovery remains available on the next launch.`);
     process.exitCode = error.exitCode || 1;
     return;
   }
   try { await launchFallback(error.message); }
   catch (fallbackError) {
-    console.error(`prime-agent: TypeScript recovery could not start: ${fallbackError.message}`);
+    console.error(`pyharness: TypeScript recovery could not start: ${fallbackError.message}`);
     process.exitCode = 1;
   }
 });

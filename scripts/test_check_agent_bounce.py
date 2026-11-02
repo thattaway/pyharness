@@ -52,7 +52,7 @@ class FixtureTests(unittest.TestCase):
                 self.assertFalse(thread.is_alive())
                 self.assertEqual(errors, [])
                 self.assertEqual(received[0]['command'], {'type': 'get_queue', 'activeSessionId': 'fixture'})
-                self.assertEqual(received[0]['protocol'], {'name': 'prime-agent.daemon', 'version': 7})
+                self.assertEqual(received[0]['protocol'], {'name': 'pyharness.daemon', 'version': 7})
 
     def test_provider_observes_actual_request_before_releasing_response(self):
         provider = Provider()

@@ -66,7 +66,7 @@ def main():
     args = parser.parse_args()
     receipt = {'scope': 'Real client binary against an isolated synthetic daemon; model compaction execution is covered by Rust tests.'}
     with tempfile.TemporaryDirectory(prefix='autocompact-check-') as directory:
-        receipt['result'] = result = observe(Path(os.environ['PA_RUST_BINARY']).resolve(), Path(directory) / 'rust')
+        receipt['result'] = result = observe(Path(os.environ['PH_RUST_BINARY']).resolve(), Path(directory) / 'rust')
     receipt['passed'] = bool(result.get('executed') and not result['fixture_errors']
                              and result.get('saved_percentage') == 100)
     args.receipt.parent.mkdir(parents=True, exist_ok=True)

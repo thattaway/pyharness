@@ -1440,244 +1440,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
-name = "pa-agent"
-version = "0.10.2"
-dependencies = [
- "anyhow",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
-]
-
-[[package]]
-name = "pa-ai"
-version = "0.10.2"
-dependencies = [
- "anyhow",
- "base64 0.22.1",
- "bytes",
- "futures",
- "h2",
- "hex",
- "hmac",
- "http",
- "pa-types",
- "rand 0.8.8",
- "rcgen",
- "regex",
- "reqwest",
- "rsa",
- "rustls",
- "rustls-native-certs",
- "serde",
- "serde_json",
- "sha1",
- "sha2",
- "tempfile",
- "thiserror",
- "tokio",
- "tokio-rustls",
- "tokio-tungstenite",
- "tokio-util",
- "tracing",
- "url",
- "webpki-roots",
-]
-
-[[package]]
-name = "pa-cli"
-version = "0.10.2"
-dependencies = [
- "anyhow",
- "base64 0.22.1",
- "crossterm",
- "flate2",
- "futures",
- "libc",
- "nix",
- "pa-agent",
- "pa-ai",
- "pa-core",
- "pa-daemon",
- "pa-telemetry",
- "pa-tui",
- "pa-types",
- "rsa",
- "serde",
- "serde_json",
- "sha2",
- "tar",
- "tempfile",
- "tokio",
- "url",
- "uuid",
- "yaml_serde",
-]
-
-[[package]]
-name = "pa-core"
-version = "0.10.2"
-dependencies = [
- "anyhow",
- "base64 0.22.1",
- "fancy-regex",
- "flate2",
- "futures",
- "getrandom 0.3.4",
- "globset",
- "hmac",
- "ignore",
- "libc",
- "nix",
- "pa-agent",
- "pa-ai",
- "pa-models",
- "pa-telemetry",
- "pa-types",
- "proptest",
- "reqwest",
- "rsa",
- "serde",
- "serde_json",
- "sha1",
- "sha2",
- "tar",
- "tempfile",
- "thiserror",
- "tokio",
- "tokio-util",
- "toml",
- "tracing",
- "unicode-normalization",
- "url",
- "uuid",
- "yaml_serde",
-]
-
-[[package]]
-name = "pa-daemon"
-version = "0.10.2"
-dependencies = [
- "anyhow",
- "filetime",
- "futures",
- "globset",
- "nix",
- "pa-agent",
- "pa-ai",
- "pa-core",
- "pa-models",
- "pa-telemetry",
- "pa-types",
- "proptest",
- "serde",
- "serde_json",
- "sha2",
- "socket2",
- "tempfile",
- "thiserror",
- "tokio",
- "tokio-util",
- "url",
- "uuid",
-]
-
-[[package]]
-name = "pa-models"
-version = "0.10.2"
-dependencies = [
- "hex",
- "hmac",
- "pa-ai",
- "pa-types",
- "rcgen",
- "reqwest",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "thiserror",
- "tokio",
- "tokio-rustls",
- "tracing",
-]
-
-[[package]]
-name = "pa-perf"
-version = "0.10.2"
-dependencies = [
- "anyhow",
- "clap",
- "nix",
- "pa-core",
- "pa-daemon",
- "pa-types",
- "serde",
- "serde_json",
- "tempfile",
- "vt100",
-]
-
-[[package]]
-name = "pa-telemetry"
-version = "0.10.2"
-dependencies = [
- "anyhow",
- "reqwest",
- "rustix 1.1.4",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tracing",
- "uuid",
-]
-
-[[package]]
-name = "pa-tui"
-version = "0.10.2"
-dependencies = [
- "anyhow",
- "base64 0.22.1",
- "clap",
- "crossterm",
- "fancy-regex",
- "ignore",
- "notify",
- "pa-types",
- "proptest",
- "ratatui",
- "regex",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tokio-util",
- "unicode-properties",
- "unicode-segmentation",
- "unicode-width 0.2.0",
- "url",
- "uuid",
- "vt100",
-]
-
-[[package]]
-name = "pa-types"
-version = "0.10.2"
-dependencies = [
- "anyhow",
- "libc",
- "regex",
- "serde",
- "serde_json",
- "socket2",
- "tempfile",
- "thiserror",
- "tokio",
-]
-
-[[package]]
 name = "parking_lot"
 version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1730,6 +1492,244 @@ name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
+
+[[package]]
+name = "ph-agent"
+version = "0.10.2"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "ph-ai"
+version = "0.10.2"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "bytes",
+ "futures",
+ "h2",
+ "hex",
+ "hmac",
+ "http",
+ "ph-types",
+ "rand 0.8.8",
+ "rcgen",
+ "regex",
+ "reqwest",
+ "rsa",
+ "rustls",
+ "rustls-native-certs",
+ "serde",
+ "serde_json",
+ "sha1",
+ "sha2",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tokio-rustls",
+ "tokio-tungstenite",
+ "tokio-util",
+ "tracing",
+ "url",
+ "webpki-roots",
+]
+
+[[package]]
+name = "ph-cli"
+version = "0.10.2"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "crossterm",
+ "flate2",
+ "futures",
+ "libc",
+ "nix",
+ "ph-agent",
+ "ph-ai",
+ "ph-core",
+ "ph-daemon",
+ "ph-telemetry",
+ "ph-tui",
+ "ph-types",
+ "rsa",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tar",
+ "tempfile",
+ "tokio",
+ "url",
+ "uuid",
+ "yaml_serde",
+]
+
+[[package]]
+name = "ph-core"
+version = "0.10.2"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "fancy-regex",
+ "flate2",
+ "futures",
+ "getrandom 0.3.4",
+ "globset",
+ "hmac",
+ "ignore",
+ "libc",
+ "nix",
+ "ph-agent",
+ "ph-ai",
+ "ph-models",
+ "ph-telemetry",
+ "ph-types",
+ "proptest",
+ "reqwest",
+ "rsa",
+ "serde",
+ "serde_json",
+ "sha1",
+ "sha2",
+ "tar",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tokio-util",
+ "toml",
+ "tracing",
+ "unicode-normalization",
+ "url",
+ "uuid",
+ "yaml_serde",
+]
+
+[[package]]
+name = "ph-daemon"
+version = "0.10.2"
+dependencies = [
+ "anyhow",
+ "filetime",
+ "futures",
+ "globset",
+ "nix",
+ "ph-agent",
+ "ph-ai",
+ "ph-core",
+ "ph-models",
+ "ph-telemetry",
+ "ph-types",
+ "proptest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "socket2",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tokio-util",
+ "url",
+ "uuid",
+]
+
+[[package]]
+name = "ph-models"
+version = "0.10.2"
+dependencies = [
+ "hex",
+ "hmac",
+ "ph-ai",
+ "ph-types",
+ "rcgen",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tokio-rustls",
+ "tracing",
+]
+
+[[package]]
+name = "ph-perf"
+version = "0.10.2"
+dependencies = [
+ "anyhow",
+ "clap",
+ "nix",
+ "ph-core",
+ "ph-daemon",
+ "ph-types",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "vt100",
+]
+
+[[package]]
+name = "ph-telemetry"
+version = "0.10.2"
+dependencies = [
+ "anyhow",
+ "reqwest",
+ "rustix 1.1.4",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "ph-tui"
+version = "0.10.2"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "clap",
+ "crossterm",
+ "fancy-regex",
+ "ignore",
+ "notify",
+ "ph-types",
+ "proptest",
+ "ratatui",
+ "regex",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "unicode-properties",
+ "unicode-segmentation",
+ "unicode-width 0.2.0",
+ "url",
+ "uuid",
+ "vt100",
+]
+
+[[package]]
+name = "ph-types"
+version = "0.10.2"
+dependencies = [
+ "anyhow",
+ "libc",
+ "regex",
+ "serde",
+ "serde_json",
+ "socket2",
+ "tempfile",
+ "thiserror",
+ "tokio",
+]
 
 [[package]]
 name = "pin-project-lite"

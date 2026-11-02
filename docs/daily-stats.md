@@ -1,9 +1,9 @@
-# Daily Prime Agent stats
+# Daily pyharness stats
 
-The GitHub Actions workflow `Prime Agent daily stats` prepares a report at 9 AM
+The GitHub Actions workflow `pyharness daily stats` prepares a report at 9 AM
 America/Los_Angeles, including daylight saving changes. GitHub may start scheduled
 runs late. The report covers the previous completed **UTC day**, matching the
-[Prime Agent Overview dashboard](https://eu.posthog.com/project/22174/dashboard/999378).
+[pyharness Overview dashboard](https://eu.posthog.com/project/22174/dashboard/999378).
 
 It reports DAU, WAU, MAU, token usage, completed runs, and run success rate. Daily
 values compare with yesterday and the same weekday last week. WAU compares with
@@ -29,11 +29,11 @@ The query excludes PostHog test accounts and version `0.0.0-benchmark`.
    token cannot read analytics. The script uses the EU
    [query endpoint](https://posthog.com/docs/product-analytics/surfaces/api).
 2. Set repository secret `SLACK_STATS_WEBHOOK_URL` to the engineering bot's incoming
-   webhook for `#research-19-prime-agent`. The webhook chooses the channel and sender.
+   webhook for `#research-19-pyharness`. The webhook chooses the channel and sender.
 3. Merge the workflow to `main`. Run it manually with **publish unchecked** to
    validate access without sending a message. Logs show validation status only.
 4. After reviewing a local report, set repository variable
-   `PRIME_AGENT_STATS_ENABLED=true` to enable daily delivery. Keep this variable
+   `PYHARNESS_STATS_ENABLED=true` to enable daily delivery. Keep this variable
    unset or `false` to stop delivery. Manual sends also require this variable,
    **publish checked**, and the `main` branch.
 
@@ -43,7 +43,7 @@ the Slack secret. Metric values never enter job logs, summaries, or uploaded art
 For a local preview, supply the PostHog key through the environment and run:
 
 ```sh
-python3 scripts/daily_stats.py prepare --output /tmp/prime-agent-stats.json
+python3 scripts/daily_stats.py prepare --output /tmp/pyharness-stats.json
 ```
 
 Read the JSON file locally. Do not commit or upload it: it contains business metrics.
@@ -51,13 +51,13 @@ An existing query response can be replayed without network access:
 
 ```sh
 python3 scripts/daily_stats.py prepare --date YYYY-MM-DD \
-  --response-file /tmp/posthog-response.json --output /tmp/prime-agent-stats.json
+  --response-file /tmp/posthog-response.json --output /tmp/pyharness-stats.json
 ```
 
 ## Delivery and recovery
 
 The workflow serializes delivery attempts and saves an artifact named
-`prime-agent-stats-YYYY-MM-DD` **before** contacting Slack. It contains only the
+`pyharness-stats-YYYY-MM-DD` **before** contacting Slack. It contains only the
 report date and workflow run ID, retained for 90 days. Manual report dates are
 limited to completed UTC days within the last 60 days. A rerun with an existing
 artifact skips delivery, including a timeout whose delivery outcome is unknown.

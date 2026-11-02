@@ -1,7 +1,7 @@
-"""Prime Agent session-to-session messaging skill.
+"""pyharness session-to-session messaging skill.
 
 All routing and sender identity live in the TypeScript daemon. These functions
-only call the host bridge exposed inside the Prime Agent kernel.
+only call the host bridge exposed inside the pyharness kernel.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from typing import Any, Literal
 from rlm import host_request
 
 ReceiverRole = Literal["parent", "sibling", "child"]
-_MESSAGE_DISPLAY_MIME = "application/vnd.prime-agent.agent-message+json"
+_MESSAGE_DISPLAY_MIME = "application/vnd.pyharness.agent-message+json"
 
 
 async def send(

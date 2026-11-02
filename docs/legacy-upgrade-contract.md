@@ -1,6 +1,6 @@
 # Legacy TypeScript upgrade contract
 
-This audit covers published Prime Agent releases from v0.6.0 onward, including
+This audit covers published pyharness releases from v0.6.0 onward, including
 18 stable TypeScript releases through v0.9.8 and relevant candidate and beta
 artifacts. Earlier versions are excluded from the requested support scope.
 Inventory and source comparison are not evidence that an installed-artifact
@@ -14,9 +14,9 @@ stable releases in scope, independent GitHub npm-asset digests, source targets,
 and relevant TS prereleases. The stable versions are 0.6.0–0.6.1,
 0.7.0–0.7.4, 0.8.0–0.8.1, and 0.9.0–0.9.8.
 
-All 18 have genuine published `prime-agent-VERSION.tgz` assets; this inventory
+All 18 have genuine published `pyharness-VERSION.tgz` assets; this inventory
 does not count inherited upstream Git tags as Prime releases. The unscoped
-public npm registry endpoint for `prime-agent` returned 404 during this audit;
+public npm registry endpoint for `pyharness` returned 404 during this audit;
 these npm packages are published as tarballs through GitHub and the release bucket.
 
 Additional published TS artifacts are `0.9.1-fhcache1` (the same digest hosted by
@@ -39,7 +39,7 @@ bucket. Do not equate an absent GitHub beta tag with an unpublished build.
 Use the GitHub release `target_commitish` below for source comparisons of the
 audited versions, then verify behavior against the actual published artifacts.
 Several local version tags resolve to upstream history with different package
-names and no Prime Agent updater. Those tags are not suitable fixtures for these
+names and no pyharness updater. Those tags are not suitable fixtures for these
 releases. A recorded source target alone does not prove the bytes shipped; release
 assets remain the authoritative end-to-end test inputs.
 
@@ -75,7 +75,7 @@ assets remain the authoritative end-to-end test inputs.
   Their `cli/native-update.ts` files are also byte-identical: SHA-256
   `707cdc796f035f01c08647c026a1f1a5aaeafbb3b4158a22e741b367a8d10f03`.
 
-All stable clients read `latest.json` under `PRIME_AGENT_DOWNLOAD_BASE_URL`, or
+All stable clients read `latest.json` under `PYHARNESS_DOWNLOAD_BASE_URL`, or
 the default release bucket. Beta clients read `beta.json`. The parser accepts
 `version`, `package` (or `packageName`), and `tarball`; relative tarball URLs
 resolve against the release bucket. Keep the npm tarball in the manifest even
@@ -83,8 +83,8 @@ when native artifacts are present.
 
 ## npm bridge requirements
 
-The published package builder rewrites the source package to **`prime-agent`**
-and the command to **`prime-agent`**, with entrypoint **`dist/bundle/cli.js`**.
+The published package builder rewrites the source package to **`pyharness`**
+and the command to **`pyharness`**, with entrypoint **`dist/bundle/cli.js`**.
 Do not infer the published package identity from the source package.json.
 
 The existing updater runs the detected global package manager against the
@@ -127,23 +127,23 @@ working native version and its corresponding migration receipt are verified.
 The v0.9.5–v0.9.8 updater executes the installer bundled in the **old** release.
 Replacing only the new archive's install.sh cannot affect that installation.
 The old installer downloads
-`releases/vVERSION/prime-agent-VERSION-PLATFORM.tar.gz`, checks its checksum,
+`releases/vVERSION/pyharness-VERSION-PLATFORM.tar.gz`, checks its checksum,
 and requires these regular files at the archive root:
 
-- `prime-agent`
+- `pyharness`
 - `package.json` with the target version
 - `install.sh`
-- `prime-agent-runtime/pyproject.toml`
-- `prime-agent-runtime/src/rlm/repl.py`
-- `theme/prime.json`
+- `pyharness-runtime/pyproject.toml`
+- `pyharness-runtime/src/rlm/repl.py`
+- `theme/pyharness.json`
 - `export-html/template.html`
 - `photon_rs_bg.wasm`
 
-It requires `prime-agent --version` to print the bare target version and
-`prime-agent --help` to succeed. It then installs to
+It requires `pyharness --version` to print the bare target version and
+`pyharness --help` to succeed. It then installs to
 `releases/VERSION-PLATFORM-SHA256[.SUFFIX]/`, writes `.archive-sha256` and
-`.install-source`, and atomically changes `bin/prime-agent`. The managed-root
-marker is `prime-agent-native-v1`.
+`.install-source`, and atomically changes `bin/pyharness`. The managed-root
+marker is `pyharness-native-v1`.
 
 These same legacy files are revalidated by the still-running TS client before
 it can find the new launcher for restart. They must remain present after
@@ -181,7 +181,7 @@ and maintain TS-compatible status and use the TS daemon's
 otherwise reports a restart warning even if installation succeeded.
 
 For `/update`, the old TUI runs the update subprocess with
-`PRIME_AGENT_INTERACTIVE_SELF_UPDATE=1`, disposes its old connection, launches
+`PYHARNESS_INTERACTIVE_SELF_UPDATE=1`, disposes its old connection, launches
 the coordinator itself, and relaunches with its saved session file. Do not
 restart the daemon prematurely from the installer or an executable probe.
 

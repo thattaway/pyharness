@@ -9,7 +9,7 @@ They are in the
 [Google Workspace Developer Preview Program](https://developers.google.com/workspace/preview).
 Google offers no dynamic client registration and requires a client secret, so
 there is no one-click login. You create your own OAuth client in Google Cloud
-and add it to Prime Agent's `mcpServers` setting. Google's own setup guide is
+and add it to pyharness's `mcpServers` setting. Google's own setup guide is
 [Configure the Google Workspace MCP servers](https://developers.google.com/workspace/guides/configure-mcp-servers).
 
 ## 1. Google Cloud project
@@ -43,11 +43,11 @@ In **Google Auth Platform > Clients > Create Client**:
    requests from clients without this flag.
 4. Create the client and copy the client ID and client secret.
 
-## 3. Prime Agent settings
+## 3. pyharness settings
 
 Add the servers to `mcpServers` in the user-level settings file
-`~/.prime/agent/settings.json`. MCP servers are read only from user settings;
-a project's `.prime/agent/settings.json` cannot add them.
+`~/.pyharness/settings.json`. MCP servers are read only from user settings;
+a project's `.pyharness/settings.json` cannot add them.
 
 ```json
 {
@@ -76,12 +76,12 @@ a project's `.prime/agent/settings.json` cannot add them.
 ```
 
 - `callbackPort` must match the redirect URI registered on the client.
-- `scopes` is space-separated. Without it, Prime Agent requests every scope the
+- `scopes` is space-separated. Without it, pyharness requests every scope the
   server advertises, which includes full `drive` access.
 - `callTimeoutMs` raises the default 60 s tool-call timeout for large writes.
 
 Then run `/mcp login google-drive` and `/mcp login google-sheets` inside Prime
-Agent and finish Google's consent screen in the browser. Prime Agent asks Google
+Agent and finish Google's consent screen in the browser. pyharness asks Google
 for offline access, so the stored grant includes a refresh token and renews
 itself. The client secret stays in settings (it is not copied into the stored
 login grant) and is sent to Google only on token requests. For SSH sessions, forward the callback port or paste the final

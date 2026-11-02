@@ -42,16 +42,16 @@ FILES_API_CEILING = 3000
 # Cargo.toml link. Over-selecting is safe; missing a dependent test is not.
 # The changes job must select without installing Rust or running Cargo.
 WORKSPACE_DEPS = {
-    "pa-types": set(),
-    "pa-telemetry": set(),
-    "pa-ai": {"pa-types"},
-    "pa-models": {"pa-ai"},
-    "pa-agent": {"pa-ai", "pa-types"},
-    "pa-core": {"pa-agent", "pa-ai", "pa-models", "pa-types", "pa-telemetry"},
-    "pa-daemon": {"pa-core"},
-    "pa-tui": {"pa-types", "pa-core"},
-    "pa-cli": {"pa-types", "pa-telemetry", "pa-ai", "pa-models",
-               "pa-agent", "pa-core", "pa-daemon", "pa-tui"},
+    "ph-types": set(),
+    "ph-telemetry": set(),
+    "ph-ai": {"ph-types"},
+    "ph-models": {"ph-ai"},
+    "ph-agent": {"ph-ai", "ph-types"},
+    "ph-core": {"ph-agent", "ph-ai", "ph-models", "ph-types", "ph-telemetry"},
+    "ph-daemon": {"ph-core"},
+    "ph-tui": {"ph-types", "ph-core"},
+    "ph-cli": {"ph-types", "ph-telemetry", "ph-ai", "ph-models",
+               "ph-agent", "ph-core", "ph-daemon", "ph-tui"},
 }
 
 
@@ -103,9 +103,9 @@ def select_crates(rows: list[tuple[str, str]]) -> list[str] | None:
             else:
                 print(f"non-crate path {candidate}: the full selection runs")
                 return None
-    # pa-types owns the shared wire vocabulary: run every workspace test for
-    # its changes, including the independent pa-telemetry leaf crate.
-    if "pa-types" in crates:
+    # ph-types owns the shared wire vocabulary: run every workspace test for
+    # its changes, including the independent ph-telemetry leaf crate.
+    if "ph-types" in crates:
         return sorted(WORKSPACE_DEPS)
     # Walk upward through the DAG until no dependent is left unselected.
     while True:

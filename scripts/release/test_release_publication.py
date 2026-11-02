@@ -38,9 +38,9 @@ if args[:2] == ['release', 'view']:
     if mode == 'wrong-shape': response = []
     if mode in ('no-beta-newer', 'no-beta-older', 'no-beta-unparsable'):
         served = '0.10.1-beta.11' if mode == 'no-beta-newer' else '0.10.1-beta.9'
-        names = [f'prime-agent-{served}-linux-x64.tar.gz', 'prime-agent-0.9.9-beta.999.tgz',
-                 'prime-agent-linux.debug.gz', 'SHA256SUMS', 'manifest.json']
-        if mode == 'no-beta-unparsable': names = ['prime-agent-unversioned.tar.gz', 'SHA256SUMS']
+        names = [f'pyharness-{served}-linux-x64.tar.gz', 'pyharness-0.9.9-beta.999.tgz',
+                 'pyharness-linux.debug.gz', 'SHA256SUMS', 'manifest.json']
+        if mode == 'no-beta-unparsable': names = ['pyharness-unversioned.tar.gz', 'SHA256SUMS']
         response = {'assets': [{'name': name} for name in names]}
     print(json.dumps(response))
 elif args[:2] == ['release', 'download']:
@@ -108,9 +108,9 @@ class PublicationTests(unittest.TestCase):
                         R2_PUBLIC_BASE_URL='https://invalid.example')
         self.out = self.root / 'release-out'
         self.out.mkdir()
-        names = [f'prime-agent-{self.version[1:]}-{p}.tar.gz' for p in
+        names = [f'pyharness-{self.version[1:]}-{p}.tar.gz' for p in
                  ('darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64', 'win32-x64')]
-        names += [f'prime-agent-{self.version[1:]}.tgz', 'prime-agent-linux.debug.gz',
+        names += [f'pyharness-{self.version[1:]}.tgz', 'pyharness-linux.debug.gz',
                   'manifest.json', 'beta.json', 'sbom-spdx-linux.json']
         for name in names:
             (self.out / name).write_text('{}')
@@ -143,7 +143,7 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual((self.out / 'SHA256SUMS').read_text(), self.sums)
 
     def test_corrupt_payload_never_publishes(self):
-        (self.out / "prime-agent-linux.debug.gz").write_text("corrupt")
+        (self.out / "pyharness-linux.debug.gz").write_text("corrupt")
         result = self.refresh()
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(self.mutations(), [])

@@ -1,0 +1,42 @@
+# ph-perf: the performance corpus generator + bench harness (dev/CI tooling).
+# Top of the dependency graph: nothing depends on it, and it never ships —
+# the release lanes build only `-p ph-cli --bin pyharness`.
+[package]
+name = "ph-perf"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+# CLI parsing: the workspace already resolves clap for ph-tui.
+clap = { version = "4", features = ["derive"] }
+# The screen model for content needles the raw byte stream cannot see (the
+# agents view's `Inactive (N)` heading repaints as cell diffs on big
+# corpora). MIT, no_std-free, never shipped — the only new third-party dep
+# this crate carries (see README + the PR body).
+vt100 = "0.15"
+# pty + poll for the bench harness: the same nix version the workspace
+# already resolves for ph-core/ph-cli.
+[target.'cfg(unix)'.dependencies]
+# `feature` provides sysconf(CLK_TCK) for idle-cost's /proc tick counts.
+nix = { version = "0.29", features = ["term", "signal", "process", "fs", "poll", "feature"] }
+
+[dependencies.ph-types]
+path = "../ph-types"
+
+[dependencies.ph-core]
+path = "../ph-core"
+
+[dependencies.ph-daemon]
+path = "../ph-daemon"
+
+[dev-dependencies]
+tempfile = "3"
+
+# The library's rows/entries ride the product's own serializers (ph-types
+# payloads inside ph-daemon's SessionEntry), so generated corpora exercise
+# the exact wire format the product reads.

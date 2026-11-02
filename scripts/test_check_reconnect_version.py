@@ -43,7 +43,7 @@ class RestartFixtureTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='reconnect-read-', dir='/tmp') as folder:
             root = Path(folder)
             server = RestartSupervisor(root / 'd.sock',
-                {'type': 'daemon_hello', 'protocol': {'name': 'prime-agent.daemon', 'version': 7}},
+                {'type': 'daemon_hello', 'protocol': {'name': 'pyharness.daemon', 'version': 7}},
                 'restart', root)
             try:
                 server.prompts.append({'message': 'persisted fixture prompt'})

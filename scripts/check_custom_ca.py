@@ -30,7 +30,7 @@ def certificate(root, name):
     key, cert = root / (name + '.key'), root / (name + '.pem')
     subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes',
                     '-keyout', str(key), '-out', str(cert), '-days', '1',
-                    '-subj', '/CN=Prime Agent fixture ' + name,
+                    '-subj', '/CN=pyharness fixture ' + name,
                     '-addext', 'basicConstraints=critical,CA:TRUE',
                     '-addext', 'keyUsage=critical,keyCertSign,cRLSign,digitalSignature',
                     '-addext', 'subjectAltName=IP:127.0.0.1'],
@@ -46,7 +46,7 @@ def server_certificate(root, ca_key, ca_cert):
                           'keyUsage=critical,digitalSignature,keyEncipherment\n'
                           'extendedKeyUsage=serverAuth\nsubjectAltName=IP:127.0.0.1\n')
     subprocess.run(['openssl', 'req', '-new', '-newkey', 'rsa:2048', '-nodes',
-                    '-keyout', str(key), '-out', str(csr), '-subj', '/CN=Prime Agent TLS fixture'],
+                    '-keyout', str(key), '-out', str(csr), '-subj', '/CN=pyharness TLS fixture'],
                    check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15)
     subprocess.run(['openssl', 'x509', '-req', '-in', str(csr), '-CA', str(ca_cert),
                     '-CAkey', str(ca_key), '-CAcreateserial', '-out', str(cert),
@@ -106,7 +106,7 @@ class Server(http.server.ThreadingHTTPServer):
 
 def owned_processes(root):
     expected = {('PI_CODING_AGENT_DIR=' + str(root / 'agent')).encode(),
-                ('PRIME_AGENT_CODING_AGENT_DIR=' + str(root / 'agent')).encode()}
+                ('PYHARNESS_CODING_AGENT_DIR=' + str(root / 'agent')).encode()}
     found = {}
     for path in Path('/proc').iterdir():
         if not path.name.isdigit():
@@ -170,10 +170,10 @@ def run_case(binary, root, trusted, key, cert, ca_cert, unrelated, observation):
         (root / name).mkdir(parents=True)
     agent, sessions, cwd = root / 'agent', root / 'sessions', root / 'work'
     env = {key: os.environ[key] for key in ('PATH', 'LANG', 'LC_ALL', 'TZ',
-           'PRIME_AGENT_KERNEL_PYTHON', 'PA_E2E_KERNEL_PYTHON') if key in os.environ}
+           'PYHARNESS_KERNEL_PYTHON', 'PH_E2E_KERNEL_PYTHON') if key in os.environ}
     env.update(HOME=str(root / 'home'), TMPDIR=str(root / 'tmp'), DO_NOT_TRACK='1',
-               PI_OFFLINE='1', PI_CODING_AGENT_DIR=str(agent), PRIME_AGENT_CODING_AGENT_DIR=str(agent),
-               PI_SESSION_DIR=str(sessions), PRIME_AGENT_SESSION_DIR=str(sessions),
+               PI_OFFLINE='1', PI_CODING_AGENT_DIR=str(agent), PYHARNESS_CODING_AGENT_DIR=str(agent),
+               PI_SESSION_DIR=str(sessions), PYHARNESS_SESSION_DIR=str(sessions),
                XDG_CONFIG_HOME=str(root / 'config'), XDG_CACHE_HOME=str(root / 'cache'),
                XDG_DATA_HOME=str(root / 'data'), NO_PROXY='127.0.0.1,localhost',
                no_proxy='127.0.0.1,localhost', NODE_EXTRA_CA_CERTS=str(ca_cert if trusted else unrelated))
@@ -280,7 +280,7 @@ def main():
               'cache_scope': 'Each case starts a fresh actual process. No assertion about in-process native-store refresh.'}
     try:
         assert sys.platform == 'linux', 'requires hosted Linux CI'
-        binary = Path(os.environ['PA_RUST_BINARY']).resolve()
+        binary = Path(os.environ['PH_RUST_BINARY']).resolve()
         result['binary'] = {'path': str(binary), 'sha256': digest(binary)}
         with tempfile.TemporaryDirectory(prefix='custom-ca-check-') as temporary:
             root = Path(temporary)

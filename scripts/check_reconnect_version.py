@@ -154,7 +154,7 @@ def main():
                'cases': {}, 'passed': False}
     try:
         with tempfile.TemporaryDirectory(prefix='pa-reconnect-check-', dir='/tmp') as temp:
-            binary = Path(os.environ['PA_RUST_BINARY']).resolve()
+            binary = Path(os.environ['PH_RUST_BINARY']).resolve()
             root = Path(temp) / 'rust'
             root.mkdir()
             env = env_for(root)

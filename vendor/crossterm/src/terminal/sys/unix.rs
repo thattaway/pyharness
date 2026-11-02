@@ -229,7 +229,7 @@ pub(crate) fn read_supports_keyboard_enhancement_raw() -> io::Result<bool> {
         stdout.flush()?;
     }
 
-    // Prime Agent v2: the same 250ms answer window, held in short slices
+    // pyharness v2: the same 250ms answer window, held in short slices
     // instead of one blocking hold. Each slice parks the shared event-reader
     // lock for at most a slice, so the app reader interleaves and delivers
     // early typing at its own cadence while the probe listens; a slice

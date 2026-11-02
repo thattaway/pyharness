@@ -86,9 +86,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
 def setup(root, provider):
     root.mkdir(parents=True)
     env = env_for(root)
-    env['PA_COMPACTION_TRACE'] = 'stderr'
+    env['PH_COMPACTION_TRACE'] = 'stderr'
     env['PYTHONPATH'] = skill_pythonpath()
-    env['PI_SESSION_DIR'] = env['PRIME_AGENT_SESSION_DIR'] = str(root / 'agent/sessions')
+    env['PI_SESSION_DIR'] = env['PYHARNESS_SESSION_DIR'] = str(root / 'agent/sessions')
     (root / 'agent/models.json').write_text(json.dumps({'providers': {'parity-local': {
         'api': 'openai-completions', 'apiKey': 'fixture-only',
         'baseUrl': 'http://127.0.0.1:%s/v1' % provider.server_address[1],
@@ -289,7 +289,7 @@ def main():
                         'goal_updates': 'Recorded only: RPC publishes before continuation, not on goal.complete; final completion is verified by get_state after agent_end.'}}
     try:
         assert sys.platform == 'linux', 'requires Linux hosted CI'
-        binary = Path(os.environ['PA_RUST_BINARY']).resolve()
+        binary = Path(os.environ['PH_RUST_BINARY']).resolve()
         result['binary'] = {'path': str(binary), 'sha256': digest(binary)}
         with tempfile.TemporaryDirectory(prefix='new-goal-check-', dir='/tmp') as temp:
             for scenario, run in (('new', new_case), ('goal_images', goal_case)):

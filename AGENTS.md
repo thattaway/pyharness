@@ -1,6 +1,7 @@
 # AGENTS.md
 
-Development rules for Prime Agent (Rust) on PrimeIntellect-ai/prime-agent, branch `main`.
+Development rules for pyharness (Rust) on thattaway/pyharness, branch `main`.
+pyharness is a fork of Prime Agent (PrimeIntellect-ai/prime-agent).
 Every contributor (human or agent) must read this before working on this repo.
 
 ## Repository
@@ -16,20 +17,19 @@ Every contributor (human or agent) must read this before working on this repo.
   suggestions, not as attribution for work merged from branches. A PR's commits carry
   one identity: the ambient git config's. Fabricated or hand-written trailers (including
   noreply forms) misattribute commits to unrelated GitHub accounts.
-- The repo is PrimeIntellect-ai/prime-agent; the Rust implementation lives on the `main` branch.
-- PRs go to the org repo with base `main`:
-  `gh pr create --repo PrimeIntellect-ai/prime-agent --base main`.
-- CI runs on the org's billing: `.github/workflows/continuous.yml` on `main` pushes and
-  `release.yml` on version tags.
-- Parity ground truth is unchanged: a read-only checkout of the TS implementation (this
-  repo at tag `v0.9.8`, the last TS release before the Rust port merged to `main`). Clone
-  it to `~/prime-agent`, the conventional location the parity scripts and code fall back
-  to; tooling that honors an override reads `PA_TS_REFERENCE`.
+- The repo is thattaway/pyharness; the Rust implementation lives on the `main` branch.
+- PRs go to thattaway/pyharness with base `main`.
+- The release workflows (`release.yml`, `release-prepare.yml`, `nightly.yml`) were written for
+  upstream's publishing infrastructure and need this fork's own secrets and release server
+  before they can publish anything.
+- Parity reference: a read-only checkout of the upstream TS implementation
+  (PrimeIntellect-ai/prime-agent at tag `v0.9.8`, the last TS release). Tooling that compares
+  against it reads `PH_TS_REFERENCE`.
 
 ## Style and structure
 
 - Workspace crates are prefixed `pa-`. The hard ownership rules: one owned area per crate,
-  pa-types is the only shared crate, cycle-free dependency direction, minimal public APIs,
+  ph-types is the only shared crate, cycle-free dependency direction, minimal public APIs,
   no god-modules. The dependency direction is pinned in the Crates table below; each crate's
   README.md states its scope, non-goals, and public API surface.
 - Prefer private modules with an explicitly exported public crate API. Internals are `pub(crate)`.
@@ -37,9 +37,9 @@ Every contributor (human or agent) must read this before working on this repo.
   signal, not a merge limit: when adding to an already-large file, consider splitting by
   responsibility rather than growing it further. Move related tests and docs with extracted code.
 - Name modules for what they own, not `utils` or `common`. Follow existing structure: in
-  `crates/pa-core/src/kernel/manager/`, `mod.rs` connects `execution.rs`, `requests.rs`, and
+  `crates/ph-core/src/kernel/manager/`, `mod.rs` connects `execution.rs`, `requests.rs`, and
   `teardown.rs`; put a new kernel-manager concern beside them. In
-  `crates/pa-core/src/cron/store/`, `mod.rs` connects `heartbeat.rs`, `jobs.rs`, and
+  `crates/ph-core/src/cron/store/`, `mod.rs` connects `heartbeat.rs`, `jobs.rs`, and
   `session_artifacts.rs`; keep storage work there rather than growing the scheduler.
 - Inline format args: always prefer `format!("{x}")` over positional.
 - Collapse if statements per clippy::collapsible_if.
@@ -105,7 +105,7 @@ Rules:
   background worker; the paint path hands the work off and returns
   immediately. Delivery semantics (timeout, retry, ordering) live with
   the worker, not the caller.
-- Telemetry is fire-and-forget from user-facing code. `pa-telemetry`'s
+- Telemetry is fire-and-forget from user-facing code. `ph-telemetry`'s
   background worker owns delivery end to end; no startup, session
   create, tab open, or first-render path may hold a flush or await a
   sink.
@@ -136,7 +136,8 @@ launch path must keep that test red-first.
   past 2,000 lines as review guidance; it never blocks a merge.
 - PRs that change shipped paths need a `.changes/<branch-slug>.md` fragment (one user-facing
   bullet; see `.changes/README.md`) or the `no-changelog` label; the changelog-fragment check enforces it.
-- **Parity-diff evidence is a merge gate** (the port's definition, not optional polish): every PR
+- **Parity-diff evidence** (inherited from upstream's port; apply where the TS behavior is still
+  the intended behavior): every PR
   that touches a user-visible surface must include a "parity-diff evidence" section in its
   description showing the TS-binary comparison for what it changed: (1) rendered output —
   frame-diff vs the TS binary;
@@ -150,31 +151,34 @@ launch path must keep that test red-first.
   direction) and classify the change: internals, new `pub` surface, or a new
   dependency/cross-crate re-export. The latter two are architectural changes — an innocent-looking
   `pub use` is a very simple way to break encapsulation.
-- The compiled fallback model catalog `crates/pa-ai/src/models_generated.rs` is
+- The compiled fallback model catalog `crates/ph-ai/src/models_generated.rs` is
   hand-maintained Rust mirroring the TS `packages/ai/src/models.generated.ts` object
   literal — edit it by hand, exactly like its TS source (there is no generator). The
-  parity fixture `crates/pa-models/tests/fixtures/catalog.v1.json` refreshes with
+  parity fixture `crates/ph-models/tests/fixtures/catalog.v1.json` refreshes with
   `scripts/generate-catalog-fixture.py`. Bulk data files are exempt from the size guidance.
 
-## Adoption telemetry
+## Telemetry and data
 
-Every user-visible feature ships its adoption telemetry event in the same PR as the feature:
-the event name + properties join the versioned schema (`pa-telemetry`), and a
-seam emits it from day one. Telemetry properties never carry prompt, session, or file content
-(primitives only; see `pa-telemetry`); delivery is fire-and-forget from user-facing code
-(see Performance and the critical path).
+- Telemetry is off by default and has no network endpoint: when a user turns it on it only
+  writes the local JSONL log. Do not add a network sink.
+- Session transcripts are never uploaded: trace sharing is permanently disabled
+  (`get_agent_traces_enabled` is always false). Do not re-enable it.
+- Telemetry properties never carry prompt, session, or file content (primitives only; see
+  `ph-telemetry`); delivery is fire-and-forget from user-facing code (see Performance and the
+  critical path).
 
 ## Branding
 
-The product is Prime Agent - we are not a pi fork. Scrub "pi"/"pi-mono"/"pi-ai"/
-"Prime Intellect"-style naming from all user-visible surfaces (docs, READMEs,
-CLI help text, error messages, splash/onboarding strings, keybinding hints, TUI
-labels, and code comments that quote user-facing strings); brand everything
-Prime Agent. Audit with a repo-wide grep and classify every hit (user-visible
-vs wire-internal vs comment) before scrubbing, and list the preserved wire
-identifiers in the PR body so the reviewer can verify none were wrongly scrubbed.
+The product is pyharness: the binary, crates (`ph-*`), environment variables
+(`PYHARNESS_*`), config directory (`~/.pyharness`), wire namespaces (`dev.pyharness`)
+and all user-visible text use that name. Keep the upstream copyright notice in
+`LICENSE` and credit Prime Agent where the README does.
 
-EXPLICIT EXCEPTION: wire-protocol identifiers that must stay byte-compatible with the TS product (e.g. the PI_PACKAGE_DIR env var, settings keys, provider IDs like prime-inference, harness _meta namespaces like ai.primeintellect.prime-agent, lockfile names) stay until/unless the TS side renames them — PARITY BEATS BRANDING ON THE WIRE.
+Prime Intellect service names stay as they are, because they name an external
+service pyharness still supports: the `prime-inference` provider, `PRIME_API_KEY`,
+`PRIME_TEAM_ID`, the Prime CLI's `~/.prime/config.json`, and `api.primeintellect.ai`.
+The legacy `PI_*` environment variables (e.g. `PI_OFFLINE`, `PI_PACKAGE_DIR`) also
+keep their names.
 
 
 
@@ -182,39 +186,39 @@ EXPLICIT EXCEPTION: wire-protocol identifiers that must stay byte-compatible wit
 
 - Tools exposed to the model: `bash`, `edit`, `python_repl` (internal helpers: `rename`, `stdout`).
 - RLM kernel API in the persistent Python REPL: `rlm.spawn/find_models/collect/list_subagents/delete_subagent/create_session/progress_note`, `rlm.harness` CRUD, `agent_message.send`, `agent_observe`, `compact`, `goal`, `refine`, `attach_image`, skills (markdown + Python) per the skill contract in the base system prompt.
-- System prompt structure: layered — cache-stable static layer files (core harness description with the full API surface, mandatory usage rules, opinionated guidelines, per-model additions from the model-prompts TOML rule map) followed by one dynamic tail (packages, project context, skills inventory, MCP servers, environment, session role); the harness digest stays a separate `[harness-digest]` user message. `prime-agent prompt` dumps the assembled prompt with its layer breakdown.
-- CLI shape: `prime-agent` with the same commands/flags as the TS product; headless modes (RPC/daemon/session-worker) with identical behavior.
+- System prompt structure: layered — cache-stable static layer files (core harness description with the full API surface, mandatory usage rules, opinionated guidelines, per-model additions from the model-prompts TOML rule map) followed by one dynamic tail (packages, project context, skills inventory, MCP servers, environment, session role); the harness digest stays a separate `[harness-digest]` user message. `pyharness prompt` dumps the assembled prompt with its layer breakdown.
+- CLI shape: `pyharness` with the same commands/flags as the TS product; headless modes (RPC/daemon/session-worker) with identical behavior.
 
 ## Crates
 
-One owned area per crate; `pa-types` is the only shared vocabulary crate.
+One owned area per crate; `ph-types` is the only shared vocabulary crate.
 Dependencies flow from the composition root toward lower crates, never back upward.
 The table summarizes each crate's current direct workspace dependencies:
 
 | Crate | Purpose | Direct workspace dependencies |
 | --- | --- | --- |
-| `pa-types` | Shared wire and domain types | none |
-| `pa-telemetry` | Events and sinks | none |
-| `pa-agent` | Provider-independent agent loop | none |
-| `pa-ai` | Providers, model registry, streaming | `pa-types` |
-| `pa-models` | Live model catalog and transport | `pa-ai`, `pa-types` |
-| `pa-core` | Session engine, tools, skills, kernel, settings | `pa-types`, `pa-ai`, `pa-models`, `pa-agent`, `pa-telemetry` |
-| `pa-daemon` | Supervisor, workers, wire protocol | `pa-types`, `pa-core`, `pa-agent`, `pa-ai`, `pa-telemetry`, `pa-models` |
-| `pa-tui` | Terminal UI, daemon-wire client | `pa-types` |
-| `pa-cli` | `prime-agent` binary, composition root | `pa-types`, `pa-core`, `pa-ai`, `pa-agent`, `pa-daemon`, `pa-tui`, `pa-telemetry` |
-| `pa-perf` | Performance corpora + pty bench harness (dev/CI tooling, never shipped) | `pa-types`, `pa-core`, `pa-daemon` |
+| `ph-types` | Shared wire and domain types | none |
+| `ph-telemetry` | Events and sinks | none |
+| `ph-agent` | Provider-independent agent loop | none |
+| `ph-ai` | Providers, model registry, streaming | `ph-types` |
+| `ph-models` | Live model catalog and transport | `ph-ai`, `ph-types` |
+| `ph-core` | Session engine, tools, skills, kernel, settings | `ph-types`, `ph-ai`, `ph-models`, `ph-agent`, `ph-telemetry` |
+| `ph-daemon` | Supervisor, workers, wire protocol | `ph-types`, `ph-core`, `ph-agent`, `ph-ai`, `ph-telemetry`, `ph-models` |
+| `ph-tui` | Terminal UI, daemon-wire client | `ph-types` |
+| `ph-cli` | `pyharness` binary, composition root | `ph-types`, `ph-core`, `ph-ai`, `ph-agent`, `ph-daemon`, `ph-tui`, `ph-telemetry` |
+| `ph-perf` | Performance corpora + pty bench harness (dev/CI tooling, never shipped) | `ph-types`, `ph-core`, `ph-daemon` |
 
 Layering rules:
 
 - Dependencies only point from higher crates to lower crates shown above. No cycles or
   reverse edges. The leaf crates are peers; add only the dependencies needed for their work.
-  Shared wire/domain vocabulary belongs in `pa-types`, not in a higher crate or a duplicate.
-- `pa-tui` renders from wire types and events; it does not link the session engine.
-- `pa-cli` is a composition root: it wires crates together and contains no business logic.
+  Shared wire/domain vocabulary belongs in `ph-types`, not in a higher crate or a duplicate.
+- `ph-tui` renders from wire types and events; it does not link the session engine.
+- `ph-cli` is a composition root: it wires crates together and contains no business logic.
 
 ## Reliability model
 
-- The daemon is a supervisor: it spawns one worker process per active session instead of hosting sessions in-process. Workers are supervised, restarted with backoff, and sessions persist on disk (append-only JSONL, same layout as `~/.prime/agent/sessions`) so reattach works even if the supervisor restarts.
+- The daemon is a supervisor: it spawns one worker process per active session instead of hosting sessions in-process. Workers are supervised, restarted with backoff, and sessions persist on disk (append-only JSONL, same layout as `~/.pyharness/sessions`) so reattach works even if the supervisor restarts.
 - No stubs, no `todo!()`, no swallowed errors (`anyhow` bubbling to UI is fine).
 
 ## References

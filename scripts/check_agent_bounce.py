@@ -86,7 +86,7 @@ class Client:
         self.counter += 1
         ident = str(self.counter)
         envelope = {'type': 'command', 'id': ident,
-            'protocol': {'name': 'prime-agent.daemon', 'version': 7},
+            'protocol': {'name': 'pyharness.daemon', 'version': 7},
             'command': {'type': kind, **payload}}
         self.sock.sendall((json.dumps(envelope) + '\n').encode())
         deadline = time.monotonic() + LIMIT
@@ -210,7 +210,7 @@ def main():
         'cases': {}}
     try:
         with tempfile.TemporaryDirectory(prefix='pa-bounce-', dir='/tmp') as folder:
-            binary = Path(os.environ['PA_RUST_BINARY']).resolve()
+            binary = Path(os.environ['PH_RUST_BINARY']).resolve()
             receipt['binary_sha256'] = digest(binary)
             for long_name in (False, True):
                 key = 'long_receiver' if long_name else 'ordinary'

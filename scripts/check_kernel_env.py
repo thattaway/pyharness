@@ -25,12 +25,12 @@ from check_agent_bounce import Client as BounceClient
 MARKER = 'KERNEL_ENV_PARITY='
 LIMIT = 35
 CODE = '''import os, json
-shell = await bash("printf '%s' \\"${PA_PREFIX_SENTINEL:-ABSENT}\\"")
+shell = await bash("printf '%s' \\"${PH_PREFIX_SENTINEL:-ABSENT}\\"")
 print('KERNEL_ENV_PARITY=' + json.dumps({'serper': os.environ.get('SERPER_API_KEY'),
-    'prefix': os.environ.get('PRIME_AGENT_BASH_COMMAND_PREFIX'),
+    'prefix': os.environ.get('PYHARNESS_BASH_COMMAND_PREFIX'),
     'bash_output': shell.output, 'bash_exit': shell.exit_code}))'''
 CASES = {
-    'command_key_and_prefix': {'skill': True, 'ambient': None, 'prefix': 'export PA_PREFIX_SENTINEL=prefix-ran'},
+    'command_key_and_prefix': {'skill': True, 'ambient': None, 'prefix': 'export PH_PREFIX_SENTINEL=prefix-ran'},
     'ambient_key_wins': {'skill': True, 'ambient': ' ambient-fixture ', 'prefix': ''},
     'no_skill_no_command': {'skill': False, 'ambient': None, 'prefix': ''},
     'blank_ambient_resolves': {'skill': True, 'ambient': '  ', 'prefix': ''},
@@ -97,8 +97,8 @@ def owned_kernel(pid, owner, fixture, identity=None):
         if state == 'Z' or (identity is not None and current != identity):
             return None
         env = dict(item.split(b'=', 1) for item in Path('/proc/%d/environ' % pid).read_bytes().split(b'\0') if b'=' in item)
-        if (env.get(b'PRIME_AGENT_KERNEL_OWNER_PID') != str(owner).encode()
-                or env.get(b'PA_KERNEL_ENV_FIXTURE_ID') != fixture.encode()):
+        if (env.get(b'PYHARNESS_KERNEL_OWNER_PID') != str(owner).encode()
+                or env.get(b'PH_KERNEL_ENV_FIXTURE_ID') != fixture.encode()):
             return None
         command = Path('/proc/%d/cmdline' % pid).read_bytes().split(b'\0')
         if not command or not command[0] or b'python' not in Path(command[0].decode()).name.encode():
@@ -140,13 +140,13 @@ def verify_worker(row, active, binary, socket_path):
     assert command[0] == str(binary).encode(), 'worker argv0 is not fixture binary'
     env = dict(item.split(b'=', 1) for item in Path('/proc/%d/environ' % pid).read_bytes().split(b'\0') if b'=' in item)
     for key, value in {
-        'PRIME_AGENT_INTERNAL_DAEMON_WORKER': '1',
-        'PRIME_AGENT_INTERNAL_DAEMON_WORKER_ACTIVE_SESSION_ID': active,
-        'PRIME_AGENT_INTERNAL_DAEMON_SUPERVISOR_SOCKET': str(socket_path),
+        'PYHARNESS_INTERNAL_DAEMON_WORKER': '1',
+        'PYHARNESS_INTERNAL_DAEMON_WORKER_ACTIVE_SESSION_ID': active,
+        'PYHARNESS_INTERNAL_DAEMON_SUPERVISOR_SOCKET': str(socket_path),
     }.items():
         assert env.get(key.encode()) == value.encode(), 'wrong fixture worker env identity'
     worker_socket = str(row['socketPath']).encode()
-    assert (worker_socket in command or env.get(b'PRIME_AGENT_INTERNAL_DAEMON_WORKER_SOCKET') == worker_socket), 'wrong worker socket identity'
+    assert (worker_socket in command or env.get(b'PYHARNESS_INTERNAL_DAEMON_WORKER_SOCKET') == worker_socket), 'wrong worker socket identity'
     identity, state = process_identity(pid)
     assert row.get('processStartId') == identity and state != 'Z', 'wrong/reused worker PID'
     return pid, identity
@@ -183,7 +183,7 @@ class KernelClient(BounceClient):
         self.counter += 1
         ident = str(self.counter)
         envelope = {'type': 'command', 'id': ident,
-            'protocol': {'name': 'prime-agent.daemon', 'version': 7},
+            'protocol': {'name': 'pyharness.daemon', 'version': 7},
             'command': {'type': kind, **payload}}
         deadline = time.monotonic() + timeout_seconds
         previous_timeout = self.sock.gettimeout()
@@ -299,12 +299,12 @@ def run_case(binary, name, case, root, observation):
         (root / directory).mkdir(parents=True)
     agent, cwd = root / 'agent', root / 'work'
     env = {key: os.environ[key] for key in ('PATH', 'LANG', 'LC_ALL', 'TZ',
-        'PRIME_AGENT_KERNEL_PYTHON', 'PA_E2E_KERNEL_PYTHON') if key in os.environ}
+        'PYHARNESS_KERNEL_PYTHON', 'PH_E2E_KERNEL_PYTHON') if key in os.environ}
     env.update(HOME=str(root / 'home'), TMPDIR=str(root / 'tmp'), DO_NOT_TRACK='1', PI_OFFLINE='1',
-        PI_CODING_AGENT_DIR=str(agent), PRIME_AGENT_CODING_AGENT_DIR=str(agent),
-        PI_SESSION_DIR=str(root / 'sessions'), PRIME_AGENT_SESSION_DIR=str(root / 'sessions'),
+        PI_CODING_AGENT_DIR=str(agent), PYHARNESS_CODING_AGENT_DIR=str(agent),
+        PI_SESSION_DIR=str(root / 'sessions'), PYHARNESS_SESSION_DIR=str(root / 'sessions'),
         XDG_CONFIG_HOME=str(root / 'config'), XDG_CACHE_HOME=str(root / 'cache'), XDG_DATA_HOME=str(root / 'data'))
-    env['PA_KERNEL_ENV_FIXTURE_ID'] = str(root.resolve())
+    env['PH_KERNEL_ENV_FIXTURE_ID'] = str(root.resolve())
     if case['ambient'] is not None:
         env['SERPER_API_KEY'] = case['ambient']
     # Explicit identical custom skill avoids differences in bundled inventory.
@@ -343,7 +343,7 @@ def run_case(binary, name, case, root, observation):
     primary_error = None
     worker_pid = None
     descriptor = None
-    fixture = env['PA_KERNEL_ENV_FIXTURE_ID']
+    fixture = env['PH_KERNEL_ENV_FIXTURE_ID']
     try:
         client = KernelClient(socket_path, process)
         created = client.call('create', name='kernel-env-' + name, config={
@@ -425,7 +425,7 @@ def main():
     try:
         assert sys.platform == 'linux', 'requires hosted Linux binaries'
         with tempfile.TemporaryDirectory(prefix='kernel-env-check-', dir='/tmp') as folder:
-            binary = Path(os.environ['PA_RUST_BINARY']).resolve()
+            binary = Path(os.environ['PH_RUST_BINARY']).resolve()
             receipt.update(binary_sha256=digest(binary), cases={})
             for name, case in CASES.items():
                 observation = receipt['cases'][name] = {}

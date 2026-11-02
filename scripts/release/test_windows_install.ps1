@@ -22,7 +22,7 @@
 $ErrorActionPreference = 'Stop'
 
 $repo = (Get-Location).Path
-$scratch = Join-Path ([IO.Path]::GetTempPath()) ("prime-agent-install-e2e-{0}" -f [Guid]::NewGuid().ToString('N'))
+$scratch = Join-Path ([IO.Path]::GetTempPath()) ("pyharness-install-e2e-{0}" -f [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $scratch | Out-Null
 
 # The Python interpreter (the assembler + the local http server).
@@ -81,11 +81,11 @@ function Get-PeImportDlls {
 # walk below proves the built binary really dropped the redist runtime DLL.
 $env:RUSTFLAGS = '-C target-feature=+crt-static'
 try {
-    & cargo build --release --locked -p pa-cli --bin prime-agent
+    & cargo build --release --locked -p ph-cli --bin pyharness
 } finally {
     $env:RUSTFLAGS = $null
 }
-if ($LASTEXITCODE -ne 0) { throw 'cargo build --release -p pa-cli failed' }
+if ($LASTEXITCODE -ne 0) { throw 'cargo build --release -p ph-cli failed' }
 $assets = Join-Path $scratch 'catalog-assets'
 & $py scripts/release/bundle_catalog.py generate --fixture --out $assets
 if ($LASTEXITCODE -ne 0) { throw 'the catalog fixture generation failed' }
@@ -93,7 +93,7 @@ if ($LASTEXITCODE -ne 0) { throw 'the catalog fixture generation failed' }
 # 2. The channel artifact + its checksums (the assembler names the archive
 #    by the platform alias the channel contract requires).
 $dist = Join-Path $scratch 'dist'
-$binary = Join-Path $repo 'target\release\prime-agent.exe'
+$binary = Join-Path $repo 'target\release\pyharness.exe'
 if (-not (Test-Path $binary)) { throw "the release binary is missing: $binary" }
 # The stock-box regression guard: the shipped binary must not import the
 # redist VC runtime (the runner has it, a stock machine does not).
@@ -107,7 +107,7 @@ $version = & $binary --version
 if (-not $version) { throw 'the release binary did not answer --version' }
 & $py scripts/release/assemble_artifacts.py --repo-root $repo --version $version --target x86_64-pc-windows-msvc --binary $binary --catalog-assets $assets --out-dir $dist
 if ($LASTEXITCODE -ne 0) { throw 'assemble_artifacts.py failed for the msvc target' }
-$artifact = "prime-agent-$version-win32-x64.tar.gz"
+$artifact = "pyharness-$version-win32-x64.tar.gz"
 if (-not (Test-Path (Join-Path $dist $artifact))) { throw "the assembled artifact is missing: $artifact" }
 
 # 3. The local channel: the stable pointer, the manifest with the win32-x64
@@ -131,7 +131,7 @@ $server = Start-Process -FilePath $py -ArgumentList '-m','http.server','8123','-
 # ~/.local/bin is unprovable (a transcript line proves an attempt, not a
 # landing; a concurrent external install races the attribution) - so the
 # harness never lets the installers touch the shared dir: both routes
-# honor PRIME_AGENT_UV_BIN_DIR and the harness points it at its scratch.
+# honor PYHARNESS_UV_BIN_DIR and the harness points it at its scratch.
 # The uv PRE-STATE still guards the parity gate below - install.ps1 skips
 # its uv branch when the machine already answers uv, so the gate runs
 # only against the fresh-runner contract.
@@ -141,15 +141,15 @@ $uvWasOnPath = [bool](Get-Command uv -CommandType Application -ErrorAction Silen
 # steers all of them into its own scratch dir through the product's
 # override knobs and restores the caller's values in the cleanup (the
 # discipline install.ps1 itself runs).
-$callerKernelVenv = $env:PRIME_AGENT_KERNEL_VENV
+$callerKernelVenv = $env:PYHARNESS_KERNEL_VENV
 $callerUvCacheDir = $env:UV_CACHE_DIR
 $callerUvPythonDir = $env:UV_PYTHON_INSTALL_DIR
-$callerUvBinDir = $env:PRIME_AGENT_UV_BIN_DIR
+$callerUvBinDir = $env:PYHARNESS_UV_BIN_DIR
 try {
-    $env:PRIME_AGENT_KERNEL_VENV = Join-Path $scratch 'kernel-venv'
+    $env:PYHARNESS_KERNEL_VENV = Join-Path $scratch 'kernel-venv'
     $env:UV_CACHE_DIR = Join-Path $scratch 'uv-cache'
     $env:UV_PYTHON_INSTALL_DIR = Join-Path $scratch 'uv-python'
-    $env:PRIME_AGENT_UV_BIN_DIR = Join-Path $scratch 'uv-bin'
+    $env:PYHARNESS_UV_BIN_DIR = Join-Path $scratch 'uv-bin'
     Start-Sleep -Seconds 2
     $base = 'http://localhost:8123'
 
@@ -159,20 +159,20 @@ try {
     #    https).
     $prefixA = Join-Path $scratch 'prefix-a'
     New-Item -ItemType Directory -Path $prefixA | Out-Null
-    $env:PRIME_AGENT_DOWNLOAD_BASE_URL = $base
-    $env:PRIME_AGENT_RELEASE_CHANNEL = 'stable'
-    $env:PRIME_AGENT_RUST_PREFIX = $prefixA
-    $env:PRIME_AGENT_ALLOW_HTTP = '1'
+    $env:PYHARNESS_DOWNLOAD_BASE_URL = $base
+    $env:PYHARNESS_RELEASE_CHANNEL = 'stable'
+    $env:PYHARNESS_RUST_PREFIX = $prefixA
+    $env:PYHARNESS_ALLOW_HTTP = '1'
     # The transcript is captured (the fallback harness's pattern): it is the
     # uv gate's evidence below - the branch's own verdict, not the network's.
     $ps1Lines = @(& pwsh -File (Join-Path $repo 'install.ps1') 2>&1 | ForEach-Object { "$_" })
     if ($LASTEXITCODE -ne 0) { $ps1Lines | Write-Host; throw 'install.ps1 failed' }
     $ps1Transcript = $ps1Lines -join [Environment]::NewLine
-    $cmdLauncher = Join-Path $prefixA 'bin\prime-agent.cmd'
+    $cmdLauncher = Join-Path $prefixA 'bin\pyharness.cmd'
     if (-not (Test-Path $cmdLauncher)) { throw "the cmd launcher is missing: $cmdLauncher" }
     $versionA = (& $cmdLauncher --version) | Select-Object -First 1
     if ($versionA -ne $version) { throw "the cmd launcher answered '$versionA' instead of '$version'" }
-    foreach ($entry in @('share\prime-agent\prime-agent.exe', 'share\prime-agent\prime-agent-runtime\pyproject.toml', 'share\prime-agent\LICENSE', 'share\prime-agent\skills')) {
+    foreach ($entry in @('share\pyharness\pyharness.exe', 'share\pyharness\pyharness-runtime\pyproject.toml', 'share\pyharness\LICENSE', 'share\pyharness\skills')) {
         if (-not (Test-Path (Join-Path $prefixA $entry))) { throw "the ps1 route's payload is missing $entry" }
     }
     # The uv parity gate asserts the CONTRACT, never astral.sh availability
@@ -193,22 +193,22 @@ try {
     New-Item -ItemType Directory -Path $prefixB | Out-Null
     $bash = 'C:\Program Files\Git\bin\bash.exe'
     if (-not (Test-Path $bash)) { throw "Git Bash is required for the sh route: $bash" }
-    $env:PRIME_AGENT_DOWNLOAD_BASE_URL = $base
-    $env:PRIME_AGENT_RELEASE_CHANNEL = 'stable'
-    $env:PRIME_AGENT_RUST_PREFIX = $prefixB
-    $env:PRIME_AGENT_ALLOW_HTTP = '1'
+    $env:PYHARNESS_DOWNLOAD_BASE_URL = $base
+    $env:PYHARNESS_RELEASE_CHANNEL = 'stable'
+    $env:PYHARNESS_RUST_PREFIX = $prefixB
+    $env:PYHARNESS_ALLOW_HTTP = '1'
     & $bash (Join-Path $repo 'install-rust.sh')
     if ($LASTEXITCODE -ne 0) { throw 'install-rust.sh failed under Git Bash' }
-    $shLauncher = Join-Path $prefixB 'bin\prime-agent'
+    $shLauncher = Join-Path $prefixB 'bin\pyharness'
     if (-not (Test-Path $shLauncher)) { throw "the sh launcher is missing: $shLauncher" }
-    $cmdLauncherB = Join-Path $prefixB 'bin\prime-agent.cmd'
+    $cmdLauncherB = Join-Path $prefixB 'bin\pyharness.cmd'
     if (-not (Test-Path $cmdLauncherB)) { throw "the sh route must also write the cmd twin: $cmdLauncherB" }
     # The MSYS form of the prefix (bash cannot parse the drive-letter spelling
     # inside its own quoting).
     $prefixBMsys = (& $bash -c ("cygpath -u '" + $prefixB + "'")).Trim()
-    $versionB = (& $bash -c ('"' + $prefixBMsys + '/bin/prime-agent" --version') | Select-Object -First 1)
+    $versionB = (& $bash -c ('"' + $prefixBMsys + '/bin/pyharness" --version') | Select-Object -First 1)
     if ($versionB -ne $version) { throw "the sh launcher answered '$versionB' instead of '$version'" }
-    foreach ($entry in @('share\prime-agent\prime-agent.exe', 'share\prime-agent\prime-agent-runtime\pyproject.toml')) {
+    foreach ($entry in @('share\pyharness\pyharness.exe', 'share\pyharness\pyharness-runtime\pyproject.toml')) {
         if (-not (Test-Path (Join-Path $prefixB $entry))) { throw "the sh route's payload is missing $entry" }
     }
 
@@ -249,12 +249,12 @@ try {
         if ($envKey) { $envKey.Close() }
     }
     # The uv install needs no cleanup: it never left the scratch dir (the
-    # PRIME_AGENT_UV_BIN_DIR knob above steered both installers), and the
+    # PYHARNESS_UV_BIN_DIR knob above steered both installers), and the
     # user's ~/.local/bin was never touched at all.
-    $env:PRIME_AGENT_KERNEL_VENV = $callerKernelVenv
+    $env:PYHARNESS_KERNEL_VENV = $callerKernelVenv
     $env:UV_CACHE_DIR = $callerUvCacheDir
     $env:UV_PYTHON_INSTALL_DIR = $callerUvPythonDir
-    $env:PRIME_AGENT_UV_BIN_DIR = $callerUvBinDir
+    $env:PYHARNESS_UV_BIN_DIR = $callerUvBinDir
     Remove-Item -Recurse -Force $scratch -ErrorAction SilentlyContinue
     if ($pathCleanFailed) {
         throw 'could not clean the user PATH entries this test added'

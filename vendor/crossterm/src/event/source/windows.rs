@@ -84,7 +84,7 @@ impl EventSource for WindowsEventSource {
                     if let Some(event) = event {
                         return Ok(Some(InternalEvent::Event(event)));
                     }
-                    // prime-agent patch: a record that maps to no event (a modifier key's own
+                    // pyharness patch: a record that maps to no event (a modifier key's own
                     // record, which the console synthesizes around every shifted pasted
                     // character) must not end a zero-timeout poll while records are still
                     // queued, or a paste is cut into several drain rounds at every capital.

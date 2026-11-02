@@ -60,8 +60,8 @@ SECTION_START_RE = re.compile(r"^## \[", re.M)
 # TypeScript release notes stay linked to their immutable release tag.
 SEED_HEADER = """# Changelog
 
-Release notes for Prime Agent. Historical TypeScript release notes are
-recorded in the [TypeScript changelog](https://github.com/PrimeIntellect-ai/prime-agent/blob/v0.9.8/packages/coding-agent/CHANGELOG.md).
+Release notes for pyharness. Historical TypeScript release notes are
+recorded in the [TypeScript changelog](https://github.com/thattaway/pyharness/blob/v0.9.8/packages/coding-agent/CHANGELOG.md).
 """
 
 

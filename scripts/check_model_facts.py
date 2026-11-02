@@ -159,8 +159,8 @@ class Client:
 
 def run_case(binary, root, observation):
     env = env_for(root)
-    env['PRIME_AGENT_MODEL_PROVIDER'] = 'fixture'
-    env['PRIME_AGENT_MODEL'] = 'facts-text'
+    env['PYHARNESS_MODEL_PROVIDER'] = 'fixture'
+    env['PYHARNESS_MODEL'] = 'facts-text'
     server = Server()
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -259,7 +259,7 @@ def main():
               'Full compact.status values retained; token/percent estimates are not checked.'}
     try:
         assert sys.platform == 'linux', 'Requires hosted Linux binaries and kernel'
-        binary = Path(os.environ['PA_RUST_BINARY']).resolve()
+        binary = Path(os.environ['PH_RUST_BINARY']).resolve()
         result['binary'] = {'path': str(binary), 'sha256': digest(binary)}
         # Keep Unix socket paths short, independent of RUNNER_TEMP/TMPDIR lengths.
         with tempfile.TemporaryDirectory(prefix='facts-', dir='/tmp') as temp:

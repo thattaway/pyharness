@@ -10,7 +10,7 @@ from collections import Counter
 from pathlib import Path
 from urllib.parse import urlsplit
 
-SOURCE_REPOSITORY = "PrimeIntellect-ai/prime-agent"
+SOURCE_REPOSITORY = "thattaway/pyharness"
 STATE_REPOSITORY = SOURCE_REPOSITORY
 STATE_ARTIFACT = "prime-discussion-state"
 STATE_WORKFLOW = ".github/workflows/discussion-slack.yml"
@@ -24,7 +24,7 @@ DAY_SECONDS = 24 * 60 * 60
 
 DISCUSSIONS_QUERY = """
 query($first: Int, $last: Int, $after: String) {
-  repository(owner: "PrimeIntellect-ai", name: "prime-agent") {
+  repository(owner: "thattaway", name: "pyharness") {
     discussions(first: $first, last: $last, after: $after,
                 orderBy: {field: CREATED_AT, direction: ASC}) {
       edges {
@@ -397,7 +397,7 @@ def test_notification(number: int, send: bool) -> None:
             payload={
                 "query": """
                     query($number: Int!) {
-                      repository(owner: "PrimeIntellect-ai", name: "prime-agent") {
+                      repository(owner: "thattaway", name: "pyharness") {
                         discussion(number: $number) {
                           id number title author { login } category { name }
                         }

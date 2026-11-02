@@ -1,8 +1,8 @@
-# install.ps1 — the Windows-native installer for Prime Agent (Rust build).
+# install.ps1 — the Windows-native installer for pyharness (Rust build).
 #
 # THE ONE-LINER (the production endpoint serves the stable installer):
 #
-#   irm https://app.primeintellect.ai/prime-agent/install.ps1 | iex
+#   irm https://app.primeintellect.ai/pyharness/install.ps1 | iex
 #
 # The release pipeline's publish step renders this file to <base>/install.ps1
 # (the stable channel) and <base>/install-beta.ps1 (the beta channel), the
@@ -11,7 +11,7 @@
 # The Git Bash route is the same channel through install-rust.sh (the sh
 # one-liner `curl -fsSL .../install.sh | sh` under Git Bash/MSYS2/Cygwin);
 # this script is the PowerShell-native form. Both routes publish the SAME
-# layout — $PREFIX\share\prime-agent\ (the payload) and $PREFIX\bin\
+# layout — $PREFIX\share\pyharness\ (the payload) and $PREFIX\bin\
 # (the launcher pair) — so either route can update the other's install.
 #
 # THE CHANNEL (install-rust.sh parity): the channel pointer (<base>/stable
@@ -33,11 +33,11 @@
 # binary open; the payload swap needs the daemon down first).
 #
 # Configuration (environment, install-rust.sh's own knobs):
-#   PRIME_AGENT_DOWNLOAD_BASE_URL  the R2-backed download base
-#   PRIME_AGENT_RELEASE_CHANNEL    stable | beta
-#   PRIME_AGENT_VERSION            pin an exact version
-#   PRIME_AGENT_RUST_PREFIX        install prefix (default: $HOME\.local)
-#   PRIME_AGENT_UV_BIN_DIR         uv install dir (default: $HOME\.local\bin)
+#   PYHARNESS_DOWNLOAD_BASE_URL  the R2-backed download base
+#   PYHARNESS_RELEASE_CHANNEL    stable | beta
+#   PYHARNESS_VERSION            pin an exact version
+#   PYHARNESS_RUST_PREFIX        install prefix (default: $HOME\.local)
+#   PYHARNESS_UV_BIN_DIR         uv install dir (default: $HOME\.local\bin)
 #
 # Prerequisites: Windows 10+ (tar.exe and Get-FileHash ship with the OS;
 # the kernel's Python runtime bootstraps through uv on first session — the
@@ -62,7 +62,7 @@ $ErrorActionPreference = 'Stop'
 # and $ReleaseChannelDefault set to the channel; the repo-file default is
 # the same bucket-root base install-rust.sh carries, so the raw repo copy
 # installs out of the box too.
-# No release server is built in: set PRIME_AGENT_DOWNLOAD_BASE_URL.
+# No release server is built in: set PYHARNESS_DOWNLOAD_BASE_URL.
 $DownloadBaseUrlDefault = ''
 $ReleaseChannelDefault = 'stable'
 
@@ -70,9 +70,9 @@ $ReleaseChannelDefault = 'stable'
 # (under `irm | iex` the script scope is the caller's session: ambient
 # variables must never be read as this installer's state, so the names are
 # unique to this script and all start cleared - the bots' finding).
-$script:primeAgentInstallScratch = $null
-$script:primeAgentInstallStage = $null
-$script:primeAgentInstallLock = $null
+$script:pyharnessInstallScratch = $null
+$script:pyharnessInstallStage = $null
+$script:pyharnessInstallLock = $null
 
 # Fail only throws: the catch at the bottom sweeps the installer's own
 # state on every failure path (a Fail and any other terminating error alike).
@@ -184,24 +184,24 @@ function Save-Release {
 }
 
 # --- the knobs ----------------------------------------------------------------
-$baseUrl = if ($env:PRIME_AGENT_DOWNLOAD_BASE_URL) { $env:PRIME_AGENT_DOWNLOAD_BASE_URL } else { $DownloadBaseUrlDefault }
+$baseUrl = if ($env:PYHARNESS_DOWNLOAD_BASE_URL) { $env:PYHARNESS_DOWNLOAD_BASE_URL } else { $DownloadBaseUrlDefault }
 if (-not $baseUrl) {
-    throw 'No release server is configured: set PRIME_AGENT_DOWNLOAD_BASE_URL to your release server, or build from source.'
+    throw 'No release server is configured: set PYHARNESS_DOWNLOAD_BASE_URL to your release server, or build from source.'
 }
-$channelRequested = $env:PRIME_AGENT_RELEASE_CHANNEL
+$channelRequested = $env:PYHARNESS_RELEASE_CHANNEL
 $channel = if ($channelRequested) { $channelRequested } else { $ReleaseChannelDefault }
-$versionPin = $env:PRIME_AGENT_VERSION
-$prefix = if ($env:PRIME_AGENT_RUST_PREFIX) { $env:PRIME_AGENT_RUST_PREFIX } else { Join-Path $HOME '.local' }
+$versionPin = $env:PYHARNESS_VERSION
+$prefix = if ($env:PYHARNESS_RUST_PREFIX) { $env:PYHARNESS_RUST_PREFIX } else { Join-Path $HOME '.local' }
 
 # THE HTTPS RULE: the channel is served over the R2-backed domain, and a
 # plaintext download base would let a network attacker swap the payload
 # the checksum then "verifies" into place. The one escape hatch is the
 # explicitly-named knob for local-channel/e2e use (install-rust.sh carries
 # the same rule + knob); it prints a loud warning when it is active.
-$allowHttp = $env:PRIME_AGENT_ALLOW_HTTP -eq '1'
+$allowHttp = $env:PYHARNESS_ALLOW_HTTP -eq '1'
 if ($baseUrl -notmatch '^https://') {
     if ($allowHttp) {
-        Write-Warning "PRIME_AGENT_ALLOW_HTTP=1: the download base $baseUrl is NOT https - the download is plaintext; use this only for a local channel you control"
+        Write-Warning "PYHARNESS_ALLOW_HTTP=1: the download base $baseUrl is NOT https - the download is plaintext; use this only for a local channel you control"
     } else {
         Fail "the download base URL must be an https URL: $baseUrl"
     }
@@ -222,11 +222,11 @@ if (Test-Path $prefix -PathType Leaf) { Fail "the install prefix names an existi
 # spellings like C:uv-bin or \uv-bin, which resolve against the CURRENT
 # directory in later shells - the exact break this check exists to
 # prevent.
-if ($env:PRIME_AGENT_UV_BIN_DIR -and (($env:PRIME_AGENT_UV_BIN_DIR -notmatch '^[a-zA-Z]:[\\/]') -and ($env:PRIME_AGENT_UV_BIN_DIR -notmatch '^\\\\[^\\\\]+\\[^\\\\]+'))) {
-    Fail "PRIME_AGENT_UV_BIN_DIR must be a fully qualified absolute path (a drive-based or UNC path): $($env:PRIME_AGENT_UV_BIN_DIR)"
+if ($env:PYHARNESS_UV_BIN_DIR -and (($env:PYHARNESS_UV_BIN_DIR -notmatch '^[a-zA-Z]:[\\/]') -and ($env:PYHARNESS_UV_BIN_DIR -notmatch '^\\\\[^\\\\]+\\[^\\\\]+'))) {
+    Fail "PYHARNESS_UV_BIN_DIR must be a fully qualified absolute path (a drive-based or UNC path): $($env:PYHARNESS_UV_BIN_DIR)"
 }
-if ($env:PRIME_AGENT_UV_BIN_DIR -and $env:PRIME_AGENT_UV_BIN_DIR.Contains(';')) {
-    Fail "PRIME_AGENT_UV_BIN_DIR must not contain a semicolon (the Windows PATH separator): $($env:PRIME_AGENT_UV_BIN_DIR)"
+if ($env:PYHARNESS_UV_BIN_DIR -and $env:PYHARNESS_UV_BIN_DIR.Contains(';')) {
+    Fail "PYHARNESS_UV_BIN_DIR must not contain a semicolon (the Windows PATH separator): $($env:PYHARNESS_UV_BIN_DIR)"
 }
 
 # The channel files: the pointer (<base>/stable or <base>/beta) names the
@@ -234,7 +234,7 @@ if ($env:PRIME_AGENT_UV_BIN_DIR -and $env:PRIME_AGENT_UV_BIN_DIR.Contains(';')) 
 # the rows; the version resolution below reads the pair per channel.
 
 # The platform this script serves: the channel manifest's win32-x64 row
-# (the TS NATIVE_PLATFORMS spelling pa-core::update::install reads) — a
+# (the TS NATIVE_PLATFORMS spelling ph-core::update::install reads) — a
 # fixed target, checked here so an ARM64 Windows machine fails loudly
 # instead of downloading a payload it cannot start.
 $platform = 'win32-x64'
@@ -249,9 +249,9 @@ if ($effectiveArchitecture -ne 'AMD64') {
 
 # The channel naming contract gives the artifact row's file name: the row
 # the channel manifest must carry for this platform (the reader's own rule,
-# pa-core::update::release::parse_channel_manifest).
+# ph-core::update::release::parse_channel_manifest).
 function ExpectedFileName($version, $platform) {
-    return "prime-agent-$version-$platform.tar.gz"
+    return "pyharness-$version-$platform.tar.gz"
 }
 
 # --- resolve the version (the channel pointer, or the pinned version) --------
@@ -305,7 +305,7 @@ function Read-ChannelPair($channelName) {
 
 # The manifest's row for this platform: the channel naming contract gives
 # the file name the row must carry (the reader's own rule,
-# pa-core::update::release::parse_channel_manifest).
+# ph-core::update::release::parse_channel_manifest).
 function Find-PlatformRow($rowManifest, $rowVersion) {
     $expected = ExpectedFileName $rowVersion $platform
     $found = $null
@@ -325,7 +325,7 @@ $manifest = $null
 $row = $null
 if ($versionPin) {
     $version = $versionPin.Trim().TrimStart('v')
-    Write-Host "installing prime-agent $version (pinned) from the $channel channel ($platform)"
+    Write-Host "installing pyharness $version (pinned) from the $channel channel ($platform)"
 } else {
     $pair = Read-ChannelPair $channel
     $version = $pair.Version
@@ -335,7 +335,7 @@ if ($versionPin) {
         Fail "no artifact row for platform $platform in the $channel manifest; the installer will not switch release channels automatically"
     }
     if ($row.sha256 -notmatch '^[0-9a-f]{64}$') { Fail "the channel manifest's sha256 for $(ExpectedFileName $version $platform) is malformed" }
-    Write-Host "installing prime-agent $version from the $channel channel ($platform)"
+    Write-Host "installing pyharness $version from the $channel channel ($platform)"
 }
 
 # --- the channel manifest row (unpinned) / the naming contract (pinned) ------
@@ -346,9 +346,9 @@ if ($versionPin) {
 
 # --- the tarball + SHA256SUMS from the versioned release prefix ----------------
 $releasePrefix = "releases/v$version"
-$download = Join-Path ([IO.Path]::GetTempPath()) ("prime-agent-download-{0}" -f [Guid]::NewGuid().ToString('N'))
+$download = Join-Path ([IO.Path]::GetTempPath()) ("pyharness-download-{0}" -f [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $download | Out-Null
-$script:primeAgentInstallScratch = $download
+$script:pyharnessInstallScratch = $download
 # THE DOWNLOAD SWEEP: the scratch (the tarball + the sums) is removed when
 # this script exits - success below, a Fail or a terminating error in the
 # catch at the bottom (install-rust.sh's `rm -rf "$dl"` discipline; the
@@ -394,20 +394,20 @@ Step-Ok 'checksum verified' "$expectedFile ($version, the $channel channel)"
 
 # --- extract to a staging dir inside the prefix (same volume: the final swap
 # --- is a rename, not a copy) -----------------------------------------------------
-$share = Join-Path $prefix 'share\prime-agent'
+$share = Join-Path $prefix 'share\pyharness'
 $bin = Join-Path $prefix 'bin'
 New-Item -ItemType Directory -Path (Join-Path $prefix 'share') -Force | Out-Null
 New-Item -ItemType Directory -Path $bin -Force | Out-Null
-$stage = Join-Path (Join-Path $prefix 'share') ("prime-agent.stage-{0}" -f [Guid]::NewGuid().ToString('N'))
+$stage = Join-Path (Join-Path $prefix 'share') ("pyharness.stage-{0}" -f [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $stage | Out-Null
 # The stage rides every exit path once created (the failure sweep at the bottom:
 # a failed extraction/validation must not leave the extracted payload
 # behind - the bots' finding).
-$script:primeAgentInstallStage = $stage
+$script:pyharnessInstallStage = $stage
 & tar -xzf $tarball -C $stage
 if ($LASTEXITCODE -ne 0) { Fail "could not extract $expectedFile (tar exited $LASTEXITCODE)" }
-$payloadExe = Join-Path $stage 'prime-agent.exe'
-if (-not (Test-Path $payloadExe -PathType Leaf)) { Fail "the tarball did not contain a prime-agent.exe payload" }
+$payloadExe = Join-Path $stage 'pyharness.exe'
+if (-not (Test-Path $payloadExe -PathType Leaf)) { Fail "the tarball did not contain a pyharness.exe payload" }
 Step-Ok 'extracted' $expectedFile
 
 # The ownership marker (install-rust.sh's exact write shape — the update
@@ -418,18 +418,18 @@ $marker = "$channelLine`nversion $version"
 # encoding follows $PSDefaultParameterValues['*:Encoding'] (UTF-16 or a
 # BOM), and the update funnel's channel-stickiness read + the rollback's
 # marker validation grep the raw ASCII line.
-Set-Content -LiteralPath (Join-Path $stage '.prime-agent-install') -Value $marker -Encoding Ascii -NoNewline
+Set-Content -LiteralPath (Join-Path $stage '.pyharness-install') -Value $marker -Encoding Ascii -NoNewline
 
 # The launcher paths (the section below the publish writes both).
-$launcher = Join-Path $bin 'prime-agent.cmd'
-$shLauncher = Join-Path $bin 'prime-agent'
+$launcher = Join-Path $bin 'pyharness.cmd'
+$shLauncher = Join-Path $bin 'pyharness'
 
 # --- the publication lock (one writer): a lock DIRECTORY is the atomic
 # --- claim on Windows (mkdir wins exactly once); the holder's pid rides a
 # --- file inside, and a stale lock is never auto-stolen. THE LOCK COMES
 # --- FIRST: a failed lock claim must never have stopped a daemon (the
 # --- bots' finding - the stop-for-nothing downtime).
-$lockDir = Join-Path (Join-Path $prefix 'share') '.prime-agent-install.lock.d'
+$lockDir = Join-Path (Join-Path $prefix 'share') '.pyharness-install.lock.d'
 try {
     New-Item -ItemType Directory -Path $lockDir -ErrorAction Stop | Out-Null
 } catch {
@@ -448,7 +448,7 @@ try {
 }
 # The lock rides every exit path from here: Fail releases it, and the
 # publish's finally releases + clears it.
-$script:primeAgentInstallLock = $lockDir
+$script:pyharnessInstallLock = $lockDir
 
 $published = $false
 $rollback = $null
@@ -457,14 +457,14 @@ $script:daemonStopped = $false
 # THE PREFLIGHT: every ownership refusal that can happen runs BEFORE the
 # daemon stop (a refused install must never have stopped a daemon - the
 # bots' finding: the stop-then-refuse order was the avoidable downtime).
-$rollback = Join-Path (Join-Path $prefix 'share') 'prime-agent.old'
+$rollback = Join-Path (Join-Path $prefix 'share') 'pyharness.old'
 if (Test-Path $share -PathType Container) {
-    $markerPath = Join-Path $share '.prime-agent-install'
+    $markerPath = Join-Path $share '.pyharness-install'
     if (-not (Test-Path $markerPath -PathType Leaf)) {
-        Fail "refusing to take ownership of ${share}: it is not a marked prime-agent payload tree (.prime-agent-install); move it aside and re-run"
+        Fail "refusing to take ownership of ${share}: it is not a marked pyharness payload tree (.pyharness-install); move it aside and re-run"
     }
     if (Test-Path $rollback) {
-        $rollbackMarker = Join-Path $rollback '.prime-agent-install'
+        $rollbackMarker = Join-Path $rollback '.pyharness-install'
         if (-not (Test-Path $rollbackMarker -PathType Leaf)) {
             Fail "refusing to delete the unmarked rollback directory: $rollback (move it aside and re-run)"
         }
@@ -475,20 +475,20 @@ try {
     # THE DAEMON STOP, inside the lock's try (a terminating error in the
     # stop must still release the lock - the bots' finding: the stale lock
     # otherwise left behind). THE TRUSTED STOP: the previous payload's own
-    # binary (the marked share tree's prime-agent.exe), never the launcher -
+    # binary (the marked share tree's pyharness.exe), never the launcher -
     # a launcher this installer has not verified is the unowned-execution
-    # shape (an attacker-placed bin\prime-agent.cmd would otherwise run
+    # shape (an attacker-placed bin\pyharness.cmd would otherwise run
     # with the installer's inherited environment); the share's ownership
     # marker gates the stop, and a fresh install (no marked payload yet)
     # has no daemon the stop could reach.
-    $payloadStopExe = Join-Path $share 'prime-agent.exe'
-    $shareMarker = Join-Path $share '.prime-agent-install'
+    $payloadStopExe = Join-Path $share 'pyharness.exe'
+    $shareMarker = Join-Path $share '.pyharness-install'
     if ((Test-Path $shareMarker -PathType Leaf) -and (Test-Path $payloadStopExe -PathType Leaf)) {
         Write-Host 'stopping the running Rust daemon before the publish (a Windows process holds its binary open)'
         # THE SCRIPTED FORM: the CLI's bare `shutdown` prompts for
         # confirmation in an interactive terminal and REFUSES a
         # non-interactive one ("Shutdown requires confirmation in an
-        # interactive terminal. Use prime-agent shutdown --force") - the
+        # interactive terminal. Use pyharness shutdown --force") - the
         # installer's context is the scripted one, so `--force` is the
         # documented non-interactive stop (the daemon's own forced
         # shutdown drains its workers with its internal budgets).
@@ -496,7 +496,7 @@ try {
         if ($LASTEXITCODE -eq 0) {
             $script:daemonStopped = $true
         } else {
-            Write-Warning "no daemon answered the shutdown request; if a daemon is running, stop it by hand (prime-agent shutdown --force) and re-run"
+            Write-Warning "no daemon answered the shutdown request; if a daemon is running, stop it by hand (pyharness shutdown --force) and re-run"
         }
     }
 
@@ -511,12 +511,12 @@ try {
         Write-Host "rollback: $rollback (the previous payload, one generation)"
     }
     [IO.Directory]::Move($stage, $share)
-    $script:primeAgentInstallStage = $null
+    $script:pyharnessInstallStage = $null
     # The payload is live: no later launcher failure rolls it back (the new
-    # tree is valid; the restored launchers point at ../share/prime-agent/
-    # prime-agent.exe - the new payload - and keep working).
+    # tree is valid; the restored launchers point at ../share/pyharness/
+    # pyharness.exe - the new payload - and keep working).
     $published = $true
-    Step-Ok 'published' "prime-agent $version to $prefix"
+    Step-Ok 'published' "pyharness $version to $prefix"
 
     # --- the launcher pair: the cmd shim (cmd.exe + PowerShell) and the sh
     # --- launcher (Git Bash) - the same payload, both shells, the same
@@ -562,17 +562,17 @@ try {
     try {
         $cmdShim = @'
 @echo off
-rem prime-agent - launcher written by install-rust.sh.
-if not defined PRIME_AGENT_CODING_AGENT_DIR set "PRIME_AGENT_CODING_AGENT_DIR=%USERPROFILE%\.prime\agent"
-"%~dp0..\share\prime-agent\prime-agent.exe" %*
+rem pyharness - launcher written by install-rust.sh.
+if not defined PYHARNESS_CODING_AGENT_DIR set "PYHARNESS_CODING_AGENT_DIR=%USERPROFILE%\.pyharness"
+"%~dp0..\share\pyharness\pyharness.exe" %*
 '@
         Set-Content -LiteralPath $launcher -Value $cmdShim
 
         $shBody = @'
 #!/bin/sh
-# prime-agent — launcher written by install-rust.sh.
-export PRIME_AGENT_CODING_AGENT_DIR="${PRIME_AGENT_CODING_AGENT_DIR:-$HOME/.prime/agent}"
-exec "$(dirname "$0")/../share/prime-agent/prime-agent.exe" "$@"
+# pyharness — launcher written by install-rust.sh.
+export PYHARNESS_CODING_AGENT_DIR="${PYHARNESS_CODING_AGENT_DIR:-$HOME/.pyharness}"
+exec "$(dirname "$0")/../share/pyharness/pyharness.exe" "$@"
 '@
         # LF endings + no BOM: the sh launcher must stay a POSIX file.
         [IO.File]::WriteAllText($shLauncher, $shBody.Replace("`r`n", "`n"))
@@ -620,7 +620,7 @@ exec "$(dirname "$0")/../share/prime-agent/prime-agent.exe" "$@"
             }
         }
         # A failed install sweeps its stage tree (the bots' finding: the
-        # accumulated prime-agent.stage-* directories).
+        # accumulated pyharness.stage-* directories).
         if ($stage -and (Test-Path $stage -PathType Container)) {
             Remove-Item -Recurse -Force $stage -ErrorAction SilentlyContinue
         }
@@ -629,11 +629,11 @@ exec "$(dirname "$0")/../share/prime-agent/prime-agent.exe" "$@"
         # the user never guesses - the next invocation boots the old
         # payload's daemon again.
         if ($script:daemonStopped) {
-            Write-Warning "the daemon stopped for this failed install stays down until the next prime-agent invocation boots it from the restored payload"
+            Write-Warning "the daemon stopped for this failed install stays down until the next pyharness invocation boots it from the restored payload"
         }
     }
     Remove-Item -Recurse -Force $lockDir -ErrorAction SilentlyContinue
-    $script:primeAgentInstallLock = $null
+    $script:pyharnessInstallLock = $null
 }
 
 # --- the kernel pre-warm: uv + the Python venv (install-rust.sh
@@ -648,7 +648,7 @@ exec "$(dirname "$0")/../share/prime-agent/prime-agent.exe" "$@"
 # --- and the caller's values come back. Offline the step degrades to the
 # --- honest note plus the exact manual command (install-rust.sh's
 # --- note/todo shape); the install itself still succeeds.
-# THE UV TARGET KNOB (install-rust.sh's own PRIME_AGENT_UV_BIN_DIR): an
+# THE UV TARGET KNOB (install-rust.sh's own PYHARNESS_UV_BIN_DIR): an
 # operator-set dir wins (a packaged install keeps uv inside its own tree,
 # the e2e harnesses point it at their scratch dir so a run never touches
 # the shared ~/.local/bin); without the knob the canonical ~/.local/bin is
@@ -656,7 +656,7 @@ exec "$(dirname "$0")/../share/prime-agent/prime-agent.exe" "$@"
 $uvInstallDir = Join-Path $HOME '.local\bin'
 # The knob's fully-qualified validation ran early with the other knobs
 # (before any side effect - see the validation block in the knobs section).
-if ($env:PRIME_AGENT_UV_BIN_DIR) { $uvInstallDir = $env:PRIME_AGENT_UV_BIN_DIR }
+if ($env:PYHARNESS_UV_BIN_DIR) { $uvInstallDir = $env:PYHARNESS_UV_BIN_DIR }
 $uvExe = Join-Path $uvInstallDir 'uv.exe'
 $uvDefaultExe = Join-Path (Join-Path $HOME '.local\bin') 'uv.exe'
 # THE THREE-WAY LOOKUP (the reviewer's finding): a usable uv is one on
@@ -684,7 +684,7 @@ if (-not $uvKnown) {
         if ((Test-Path $uvInstallerPath -PathType Leaf) -and ((Get-Item -LiteralPath $uvInstallerPath).Length -gt 0)) {
             $callerUvInstallDir = $env:UV_INSTALL_DIR
             $callerUvUnmanaged = $env:UV_UNMANAGED_INSTALL
-            $callerUvInstaller = $env:PRIME_AGENT_UV_INSTALLER
+            $callerUvInstaller = $env:PYHARNESS_UV_INSTALLER
             try {
                 $env:UV_INSTALL_DIR = $uvInstallDir
                 $env:UV_UNMANAGED_INSTALL = $null
@@ -718,11 +718,11 @@ if (-not $uvKnown) {
                 # already runs UV_INSTALL_DIR through), and the child reads
                 # the variable - environment inheritance is OS semantics,
                 # no PowerShell parsing of the path happens at any version.
-                $env:PRIME_AGENT_UV_INSTALLER = $uvInstallerPath
+                $env:PYHARNESS_UV_INSTALLER = $uvInstallerPath
                 $childScript = @"
 `$ProgressPreference = 'SilentlyContinue'
 `$VerbosePreference = 'SilentlyContinue'
-& `$env:PRIME_AGENT_UV_INSTALLER
+& `$env:PYHARNESS_UV_INSTALLER
 "@
                 $childEncoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($childScript))
                 & $childShell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand $childEncoded *> $null
@@ -730,7 +730,7 @@ if (-not $uvKnown) {
             } finally {
                 $env:UV_INSTALL_DIR = $callerUvInstallDir
                 $env:UV_UNMANAGED_INSTALL = $callerUvUnmanaged
-                $env:PRIME_AGENT_UV_INSTALLER = $callerUvInstaller
+                $env:PYHARNESS_UV_INSTALLER = $callerUvInstaller
             }
             if (-not (Test-Path $uvExe -PathType Leaf)) {
                 Step-Fail 'installing uv' "the uv installer exited $uvRunExit; uv.exe is missing"
@@ -756,7 +756,7 @@ if (-not $uvKnown) {
 }
 # THE PRE-WARM'S PATH FIX (install-rust.sh's own): the product's ensure_uv
 # searches PATH and ~/.local/bin/uv(.exe) - it does NOT know the
-# PRIME_AGENT_UV_BIN_DIR target - so the prepend serves the uv THIS RUN
+# PYHARNESS_UV_BIN_DIR target - so the prepend serves the uv THIS RUN
 # installed or found at the target when nothing usable answers on PATH
 # (the reviewer's finding: a pre-warm whose uv is known but unfindable
 # fails). THE GUARD (the macroscope finding): a working PATH uv is never
@@ -771,7 +771,7 @@ if (-not $uvOnPath -and $uvAtTarget -and -not (Test-PathEntry $env:PATH $uvInsta
 }
 if ($uvKnown) {
     Write-Host 'kernel pre-warm: provisioning the Python kernel runtime'
-    & $launcher --prime-agent-bootstrap
+    & $launcher --pyharness-bootstrap
     if ($LASTEXITCODE -ne 0) {
         Step-Fail 'preparing the Python kernel' 'the first session retries it online'
     } else {
@@ -790,7 +790,7 @@ if ($uvKnown) {
 # Windows has a canonical user-PATH setting (the registry's User scope —
 # no admin needed), so the installer ADDS the launcher's bin dir there
 # itself: idempotent (appended only when the entry is absent, never
-# duplicated), mirrored into the CURRENT session so prime-agent works in
+# duplicated), mirrored into the CURRENT session so pyharness works in
 # this console immediately, and a new terminal picks it up (the
 # WM_SETTINGCHANGE broadcast tells the running shells the environment
 # changed, the same way setx does — best-effort; the registry write is
@@ -823,7 +823,7 @@ $pathAdded = $false
 foreach ($binDir in $pathDirs) {
     if (-not (Test-PathEntry $env:PATH $binDir)) {
         $env:PATH = "$env:PATH;$binDir"
-        Write-Host "PATH: added $binDir to this session - prime-agent works in this console now"
+        Write-Host "PATH: added $binDir to this session - pyharness works in this console now"
     }
     $envKey = $null
     try {
@@ -859,13 +859,13 @@ foreach ($binDir in $pathDirs) {
 }
 if ($pathAdded) {
     try {
-        if (-not ('prime_agent_install.Win32SendMessage' -as [type])) {
-            Add-Type -Namespace 'prime_agent_install' -Name 'Win32SendMessage' -MemberDefinition @'
+        if (-not ('pyharness_install.Win32SendMessage' -as [type])) {
+            Add-Type -Namespace 'pyharness_install' -Name 'Win32SendMessage' -MemberDefinition @'
 [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
 public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);
 '@
         }
-        [prime_agent_install.Win32SendMessage]::SendMessageTimeout([IntPtr]0xffff, 0x001A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]([UIntPtr]::Zero))
+        [pyharness_install.Win32SendMessage]::SendMessageTimeout([IntPtr]0xffff, 0x001A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]([UIntPtr]::Zero))
     } catch {
         # The registry write stands; the broadcast is a courtesy (a re-login
         # reloads the environment too).
@@ -896,11 +896,11 @@ try {
 }
 Write-Host "launcher:  $launcher"
 Write-Host "payload:   $share"
-Write-Host "source:    the $channel channel at $baseUrl (prime-agent $version)"
+Write-Host "source:    the $channel channel at $baseUrl (pyharness $version)"
 Write-Host 'next steps: the README''s Install section ships inside the payload:'
 Write-Host "  $share\README.md"
 
-$script:primeAgentInstallScratch = $null
+$script:pyharnessInstallScratch = $null
 $script:preservedLaunchers = @()
 $script:ownedLauncherBackups = @()
 if ($download) { Remove-Item -Recurse -Force $download -ErrorAction SilentlyContinue }
@@ -912,18 +912,18 @@ if ($download) { Remove-Item -Recurse -Force $download -ErrorAction SilentlyCont
     # lock; the publish's finally has already released it when the failure
     # came from there). The names were cleared at the top, so an ambient
     # caller's variables never enter the cleanup.
-    if ($script:primeAgentInstallScratch) {
-        Remove-Item -Recurse -Force $script:primeAgentInstallScratch -ErrorAction SilentlyContinue
+    if ($script:pyharnessInstallScratch) {
+        Remove-Item -Recurse -Force $script:pyharnessInstallScratch -ErrorAction SilentlyContinue
     }
-    if ($script:primeAgentInstallStage) {
-        Remove-Item -Recurse -Force $script:primeAgentInstallStage -ErrorAction SilentlyContinue
+    if ($script:pyharnessInstallStage) {
+        Remove-Item -Recurse -Force $script:pyharnessInstallStage -ErrorAction SilentlyContinue
     }
-    if ($script:primeAgentInstallLock) {
-        Remove-Item -Recurse -Force $script:primeAgentInstallLock -ErrorAction SilentlyContinue
+    if ($script:pyharnessInstallLock) {
+        Remove-Item -Recurse -Force $script:pyharnessInstallLock -ErrorAction SilentlyContinue
     }
-    $script:primeAgentInstallScratch = $null
-    $script:primeAgentInstallStage = $null
-    $script:primeAgentInstallLock = $null
+    $script:pyharnessInstallScratch = $null
+    $script:pyharnessInstallStage = $null
+    $script:pyharnessInstallLock = $null
     if ($PSCommandPath) {
         $Host.UI.WriteErrorLine($_.Exception.Message)
         exit 1

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate and validate the bundled catalog assets for prime-agent releases.
+"""Generate and validate the bundled catalog assets for pyharness releases.
 
 Port of the TS catalog asset tool (packages/coding-agent/scripts/catalog-assets.mjs
 on the TS client's `feat/catalog-client` line) for the Rust release pipeline.
@@ -57,7 +57,7 @@ BUNDLED_CATALOG_FILES = ("models.bundled.json", "mcp-services.bundled.json")
 
 # Release-gate minimums (spec §3.2/§3.9): sanity floors that catch a
 # truncated, emptied or wrong catalog file. They gate the live catalog, and
-# prime-agent-catalog's own validator has no minimums, so they sit below the
+# pyharness-catalog's own validator has no minimums, so they sit below the
 # live counts (42 transport tuples and 69 services on 2026-10-23): removing a
 # provider endpoint or a few services there must not block every build. The
 # shipped TS tool carries MIN_BUNDLED_MCP_SERVICES = 20.
@@ -66,7 +66,7 @@ MIN_MCP_SERVICES = 50
 # The offline fixture's generated service count (plus the special entries).
 FIXTURE_MCP_SERVICES = 68
 
-CATALOG_REPO = "PrimeIntellect-ai/prime-agent-catalog"
+CATALOG_REPO = "thattaway/pyharness-catalog"
 MODEL_CATALOG_PATH = "models/catalog.v1.json"
 MCP_SERVICE_CATALOG_PATH = "plugins/catalog.v2.json"
 
@@ -420,7 +420,7 @@ def validate_bundled_catalog_dir(directory, allow_small_fixture: bool = False) -
 # The compiled transport tuples of the shipped registry (43 distinct
 # (provider, api, baseUrl) triples across 32 providers, from the compiled
 # model catalog, now the hand-maintained fallback table
-# crates/pa-ai/src/models_generated.rs). Fixture models use real tuples so
+# crates/ph-ai/src/models_generated.rs). Fixture models use real tuples so
 # they survive runtime transport pinning; nothing here can introduce a
 # transport the client does not implement.
 FIXTURE_TRANSPORT_TUPLES = [
@@ -570,7 +570,7 @@ def fixture_service(index: int, transport_kind: str, auth_strategy: str,
         "description": f"Synthetic fixture MCP service {index:02d} for offline builds.",
         "category": "Fixture",
         "aliases": [] if index % 5 else [f"fixture service {index:02d}"],
-        "publisher": "Prime Intellect",
+        "publisher": "pyharness",
         "transport": transport,
         "auth": auth,
         "setup": setup,
@@ -884,7 +884,7 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--out", dest="out_dir", default=None,
                         help="asset output directory (default: target/catalog-assets)")
     parser.add_argument("--catalog-dir", default=None,
-                        help="copy from a local prime-agent-catalog checkout")
+                        help="copy from a local pyharness-catalog checkout")
     parser.add_argument("--network", action="store_true",
                         help="fetch the live catalog repo (CI/packaging default)")
     parser.add_argument("--fixture", action="store_true",

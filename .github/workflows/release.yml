@@ -1,4 +1,4 @@
-# Release pipeline for Prime Agent (Rust).
+# Release pipeline for pyharness (Rust).
 #
 # THE TWO BUILD ROUTES (one promote gate):
 #   - a plain vX.Y.Z tag (stable) BUILDS its own 5-target matrix: the stable
@@ -30,7 +30,7 @@ on:
     tags:
       # A plain tag publishes the stable channel (latest.json); a -beta*
       # prerelease tag publishes the nightly channel (beta.json) - the two
-      # channels pa-core::update::version::UpdateChannel reads.
+      # channels ph-core::update::version::UpdateChannel reads.
       - "v[0-9]+.[0-9]+.[0-9]+"
       - "v[0-9]+.[0-9]+.[0-9]+-beta*"
 
@@ -70,7 +70,7 @@ jobs:
           tag_ver="${GITHUB_REF_NAME#v}"
           cargo_ver="$(sed -n 's/^version *= *"\([^"]*\)".*/\1/p' Cargo.toml | head -1)"
           [[ "${tag_ver}" == "${cargo_ver}" ]]             || { echo "tag v${tag_ver} does not match Cargo.toml ${cargo_ver}"; exit 1; }
-          # The channel the tag publishes (pa-core::update::version
+          # The channel the tag publishes (ph-core::update::version
           # resolve_update_channel parity): plain = stable (latest.json),
           # -beta* = nightly (beta.json); any other prerelease would be a
           # stable-channel pre-release the update flow refuses to install.
@@ -80,7 +80,7 @@ jobs:
             *) echo "stable channel: the release publishes latest.json" ;;
           esac
 
-  # The prime-agent-catalog commit every build job bundles, resolved once
+  # The pyharness-catalog commit every build job bundles, resolved once
   # per run so all targets ship the same catalog revision.
   catalog-ref:
     name: Resolve the bundled catalog commit
@@ -93,7 +93,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
-      - name: Resolve prime-agent-catalog main
+      - name: Resolve pyharness-catalog main
         id: resolve
         env:
           # Authenticated lookups avoid the shared-runner anonymous API limit.
@@ -102,7 +102,7 @@ jobs:
           set -euo pipefail
           sha="$(python3 scripts/release/bundle_catalog.py resolve-ref)"
           echo "sha=${sha}" >> "${GITHUB_OUTPUT}"
-          echo "bundling prime-agent-catalog ${sha}"
+          echo "bundling pyharness-catalog ${sha}"
 
   build-gnu:
     needs: [tag-check, catalog-ref]
@@ -182,11 +182,11 @@ jobs:
           # the new key builds cold; the marker moves only with reviewed
           # baseline changes (same protocol as the image digest below).
           key: ${{ matrix.target }}-glibc235
-      # Only the shipped binary links here: the job packages `prime-agent`
-      # alone, so pa-daemon's [[bin]] would be a second thin-LTO link with
+      # Only the shipped binary links here: the job packages `pyharness`
+      # alone, so ph-daemon's [[bin]] would be a second thin-LTO link with
       # no consumer (~26% of the build step, measured).
       - name: Build (release, locked)
-        run: cargo build --release --locked --target ${{ matrix.target }} -j 4 -p pa-cli --bin prime-agent
+        run: cargo build --release --locked --target ${{ matrix.target }} -j 4 -p ph-cli --bin pyharness
       - name: Split the shipped binary + split-debug decoder (Option C posture)
         # Linux only: the build emits line tables and does not strip at
         # link; this step produces the SHIPPED binary (objcopy
@@ -199,21 +199,21 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/release/split_debug.py \
-            --binary "target/${{ matrix.target }}/release/prime-agent" \
-            --shipped "target/${{ matrix.target }}/dist/prime-agent" \
+            --binary "target/${{ matrix.target }}/release/pyharness" \
+            --shipped "target/${{ matrix.target }}/dist/pyharness" \
             --out "target/${{ matrix.target }}/dist" \
             --version "${RELEASE_VERSION#v}" \
             --target "${{ matrix.target }}"
       - name: "Livecheck gate: --version prints the tag version"
         run: |
           set -euo pipefail
-          bin="target/${{ matrix.target }}/dist/prime-agent"
+          bin="target/${{ matrix.target }}/dist/pyharness"
           out="$("${bin}" --version)"
           [[ "${out}" == "${RELEASE_VERSION#v}" ]]             || { echo "binary reports '${out}', expected '${RELEASE_VERSION#v}'"; exit 1; }
       - name: "GLIBC baseline gate: no symbols above GLIBC_2.35 (Ubuntu 22.04)"
         run: |
           set -euo pipefail
-          bin="target/${{ matrix.target }}/dist/prime-agent"
+          bin="target/${{ matrix.target }}/dist/pyharness"
           syms="$(objdump -T "${bin}" | grep -o 'GLIBC_[0-9.]*' || true)"
           if [ -z "${syms}" ]; then
             echo "::error::could not inspect ${bin} with objdump (no GLIBC symbols found) - refusing to pass the gate without evidence"
@@ -226,7 +226,7 @@ jobs:
             echo "::error::binary requires ${max_glibc}, above the GLIBC_2.35 (Ubuntu 22.04) release baseline"
             exit 1
           fi
-      # The live catalog from prime-agent-catalog (public; no token needed)
+      # The live catalog from pyharness-catalog (public; no token needed)
       # at the commit the catalog-ref job resolved: a fresh install's first
       # model list comes from this snapshot, identical across targets.
       - name: Generate bundled catalog assets (live catalog)
@@ -245,8 +245,8 @@ jobs:
             --repo-root . \
             --version "${RELEASE_VERSION#v}" \
             --target "${{ matrix.target }}" \
-            --binary "target/${{ matrix.target }}/dist/prime-agent" \
-            --decoder "target/${{ matrix.target }}/dist/prime-agent-${RELEASE_VERSION#v}-$(case "${{ matrix.target }}" in x86_64*) echo linux-x64;; aarch64*) echo linux-arm64;; esac).debug.gz" \
+            --binary "target/${{ matrix.target }}/dist/pyharness" \
+            --decoder "target/${{ matrix.target }}/dist/pyharness-${RELEASE_VERSION#v}-$(case "${{ matrix.target }}" in x86_64*) echo linux-x64;; aarch64*) echo linux-arm64;; esac).debug.gz" \
             --catalog-assets "target/${{ matrix.target }}/catalog-assets" \
             --out-dir "target/${{ matrix.target }}/dist"
           cat "target/${{ matrix.target }}/dist/manifest.json"
@@ -256,7 +256,7 @@ jobs:
         if: matrix.target != 'x86_64-apple-darwin'
         run: |
           set -euo pipefail
-          archives=(target/${{ matrix.target }}/dist/prime-agent-*.tar.gz)
+          archives=(target/${{ matrix.target }}/dist/pyharness-*.tar.gz)
           python3 scripts/release/test_channel_install.py \
             --archive "${archives[0]}" --installer install-rust.sh \
             --report "target/${{ matrix.target }}/dist/channel-install.json"
@@ -266,7 +266,7 @@ jobs:
         if: matrix.target != 'x86_64-apple-darwin'
         run: |
           set -euo pipefail
-          archives=(target/${{ matrix.target }}/dist/prime-agent-*.tar.gz)
+          archives=(target/${{ matrix.target }}/dist/pyharness-*.tar.gz)
           python3 scripts/release/verify_legacy_release.py \
             --candidate "${archives[0]}" \
             --report "target/${{ matrix.target }}/dist/legacy-upgrade.json"
@@ -276,7 +276,7 @@ jobs:
       # cut per stable release: the job gate keeps this stable-only, and the
       # step gate holds the matrix to a single leg so the artifact exists
       # exactly once. The output goes to its own src-dist dir — the binary
-      # artifact's upload glob (dist/prime-agent-*) must not pick the src
+      # artifact's upload glob (dist/pyharness-*) must not pick the src
       # tarball up as a per-target artifact.
       - name: Assemble the source tarball (homebrew-core candidate)
         if: matrix.target == 'x86_64-unknown-linux-gnu' && !contains(github.ref_name, '-')
@@ -294,7 +294,7 @@ jobs:
         with:
           name: artifacts-source
           path: |
-            target/${{ matrix.target }}/src-dist/prime-agent-*
+            target/${{ matrix.target }}/src-dist/pyharness-*
             target/${{ matrix.target }}/src-dist/SHA256SUMS
             target/${{ matrix.target }}/src-dist/manifest.json
           if-no-files-found: error
@@ -306,7 +306,7 @@ jobs:
         with:
           name: artifacts-${{ matrix.target }}
           path: |
-            target/${{ matrix.target }}/dist/prime-agent-*
+            target/${{ matrix.target }}/dist/pyharness-*
             target/${{ matrix.target }}/dist/SHA256SUMS
             target/${{ matrix.target }}/dist/manifest.json
             target/${{ matrix.target }}/dist/legacy-upgrade.json
@@ -357,11 +357,11 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: ${{ matrix.target }}
-      # Only the shipped binary links here: the job packages `prime-agent`
-      # alone, so pa-daemon's [[bin]] would be a second thin-LTO link with
+      # Only the shipped binary links here: the job packages `pyharness`
+      # alone, so ph-daemon's [[bin]] would be a second thin-LTO link with
       # no consumer (~26% of the build step, measured).
       - name: Build (release, locked)
-        run: cargo build --release --locked --target ${{ matrix.target }} -j 4 -p pa-cli --bin prime-agent
+        run: cargo build --release --locked --target ${{ matrix.target }} -j 4 -p ph-cli --bin pyharness
       # The aarch64 leg livechecks natively; the x86_64 leg,
       # cross-compiled on the Apple-silicon pool, livechecks under
       # Rosetta 2 — the runtime install-rust.sh gives the x64 payload on
@@ -369,10 +369,10 @@ jobs:
       - name: "Livecheck gate: --version prints the tag version"
         run: |
           set -euo pipefail
-          bin="target/${{ matrix.target }}/release/prime-agent"
+          bin="target/${{ matrix.target }}/release/pyharness"
           out="$("${bin}" --version)"
           [[ "${out}" == "${RELEASE_VERSION#v}" ]]             || { echo "binary reports '${out}', expected '${RELEASE_VERSION#v}'"; exit 1; }
-      # The live catalog from prime-agent-catalog (public; no token needed)
+      # The live catalog from pyharness-catalog (public; no token needed)
       # at the commit the catalog-ref job resolved: a fresh install's first
       # model list comes from this snapshot, identical across targets.
       - name: Generate bundled catalog assets (live catalog)
@@ -389,7 +389,7 @@ jobs:
             --repo-root . \
             --version "${RELEASE_VERSION#v}" \
             --target "${{ matrix.target }}" \
-            --binary "target/${{ matrix.target }}/release/prime-agent" \
+            --binary "target/${{ matrix.target }}/release/pyharness" \
             --catalog-assets "target/${{ matrix.target }}/catalog-assets" \
             --out-dir "target/${{ matrix.target }}/dist"
           cat "target/${{ matrix.target }}/dist/manifest.json"
@@ -399,7 +399,7 @@ jobs:
         if: matrix.target != 'x86_64-apple-darwin'
         run: |
           set -euo pipefail
-          archives=(target/${{ matrix.target }}/dist/prime-agent-*.tar.gz)
+          archives=(target/${{ matrix.target }}/dist/pyharness-*.tar.gz)
           python3 scripts/release/test_channel_install.py \
             --archive "${archives[0]}" --installer install-rust.sh \
             --report "target/${{ matrix.target }}/dist/channel-install.json"
@@ -409,7 +409,7 @@ jobs:
         if: matrix.target != 'x86_64-apple-darwin'
         run: |
           set -euo pipefail
-          archives=(target/${{ matrix.target }}/dist/prime-agent-*.tar.gz)
+          archives=(target/${{ matrix.target }}/dist/pyharness-*.tar.gz)
           python3 scripts/release/verify_legacy_release.py \
             --candidate "${archives[0]}" \
             --report "target/${{ matrix.target }}/dist/legacy-upgrade.json"
@@ -418,7 +418,7 @@ jobs:
         with:
           name: artifacts-${{ matrix.target }}
           path: |
-            target/${{ matrix.target }}/dist/prime-agent-*
+            target/${{ matrix.target }}/dist/pyharness-*
             target/${{ matrix.target }}/dist/SHA256SUMS
             target/${{ matrix.target }}/dist/manifest.json
             target/${{ matrix.target }}/dist/legacy-upgrade.json
@@ -482,17 +482,17 @@ jobs:
       - name: Build (release, locked)
         env:
           RUSTFLAGS: -C target-feature=+crt-static
-        run: cargo build --release --locked --target ${{ matrix.target }} -j 4 -p pa-cli --bin prime-agent
+        run: cargo build --release --locked --target ${{ matrix.target }} -j 4 -p ph-cli --bin pyharness
       - name: "Livecheck gate: --version prints the tag version"
         shell: bash
         run: |
           set -euo pipefail
-          # Cargo's MSVC linker emits prime-agent.exe; the payload name the
+          # Cargo's MSVC linker emits pyharness.exe; the payload name the
           # assembler stages and the installer extracts.
-          bin="target/${{ matrix.target }}/release/prime-agent.exe"
+          bin="target/${{ matrix.target }}/release/pyharness.exe"
           out="$("${bin}" --version)"
           [[ "${out}" == "${RELEASE_VERSION#v}" ]]             || { echo "binary reports '${out}', expected '${RELEASE_VERSION#v}'"; exit 1; }
-      # The live catalog from prime-agent-catalog (public; no token needed)
+      # The live catalog from pyharness-catalog (public; no token needed)
       # at the commit the catalog-ref job resolved: a fresh install's first
       # model list comes from this snapshot, identical across targets.
       - name: Generate bundled catalog assets (live catalog)
@@ -511,7 +511,7 @@ jobs:
             --repo-root . \
             --version "${RELEASE_VERSION#v}" \
             --target "${{ matrix.target }}" \
-            --binary "target/${{ matrix.target }}/release/prime-agent.exe" \
+            --binary "target/${{ matrix.target }}/release/pyharness.exe" \
             --catalog-assets "target/${{ matrix.target }}/catalog-assets" \
             --out-dir "target/${{ matrix.target }}/dist"
           cat "target/${{ matrix.target }}/dist/manifest.json"
@@ -520,7 +520,7 @@ jobs:
         with:
           name: artifacts-${{ matrix.target }}
           path: |
-            target/${{ matrix.target }}/dist/prime-agent-*
+            target/${{ matrix.target }}/dist/pyharness-*
             target/${{ matrix.target }}/dist/SHA256SUMS
             target/${{ matrix.target }}/dist/manifest.json
           if-no-files-found: error
@@ -737,7 +737,7 @@ jobs:
         run: |
           set -euo pipefail
           archives=()
-          for archive in incoming/*/prime-agent-*.tar.gz; do
+          for archive in incoming/*/pyharness-*.tar.gz; do
             # Source distributions are build inputs, not runnable payloads.
             case "$archive" in *-src.tar.gz) continue ;; esac
             archives+=("$archive")
@@ -786,14 +786,14 @@ jobs:
               json.dumps(result, indent=2) + "\n")
           (out / "SHA256SUMS").write_text("\n".join(sums) + "\n")
           for entry_dir in (p for p in incoming.iterdir() if p.is_dir()):
-              for tar in sorted(entry_dir.glob("prime-agent-*.tar.gz")):
+              for tar in sorted(entry_dir.glob("pyharness-*.tar.gz")):
                   (out / tar.name).hardlink_to(tar)
               # The split-debug decoders ride their build artifacts as
               # separate files; promote them to release-out too so the
               # attach step ships them as their own release assets. They
               # are never in a tarball (the assembler hard-fails on that)
               # and never in a channel manifest (asserted below).
-              for decoder in sorted(entry_dir.glob("prime-agent-*.debug.gz")):
+              for decoder in sorted(entry_dir.glob("pyharness-*.debug.gz")):
                   (out / decoder.name).hardlink_to(decoder)
           # Unpack each tarball so the SBOM covers the unpacked artifact tree
           # (syft does not unpack tar.gz archives itself); keyed by the target
@@ -813,12 +813,12 @@ jobs:
           # Keep a working TS fallback when an existing npm installation
           # cannot run the native target. The packer verifies its pinned hash.
           curl --fail --location --silent --show-error --retry 3 \
-            https://pub-728493de92a943e2a9b2d17b4719f318.r2.dev/releases/v0.9.8/prime-agent-0.9.8.tgz \
-            --output /tmp/prime-agent-typescript-fallback.tgz
+            https://pub-728493de92a943e2a9b2d17b4719f318.r2.dev/releases/v0.9.8/pyharness-0.9.8.tgz \
+            --output /tmp/pyharness-typescript-fallback.tgz
           python3 verification-source/scripts/release/npm_bridge.py \
             --repo-root verification-source --version "${RELEASE_VERSION#v}" --out-dir release-out --channel "$channel" \
-            --fallback-tarball /tmp/prime-agent-typescript-fallback.tgz
-          (cd release-out && sha256sum "prime-agent-${RELEASE_VERSION#v}.tgz" >> SHA256SUMS)
+            --fallback-tarball /tmp/pyharness-typescript-fallback.tgz
+          (cd release-out && sha256sum "pyharness-${RELEASE_VERSION#v}.tgz" >> SHA256SUMS)
       - name: Emit the channel manifest (latest.json stable / beta.json nightly)
         run: |
           set -euo pipefail
@@ -827,11 +827,11 @@ jobs:
 
           # The producer half of the update flow's channel contract (TS
           # getLatestPiRelease parity; the reader is
-          # pa-core::update::release::latest_release): <download-base>/
+          # ph-core::update::release::latest_release): <download-base>/
           # latest.json (stable) or beta.json (nightly), carrying the
           # version plus artifact rows the reader keeps only when the
           # platform is known, `file` is exactly
-          # prime-agent-<version>-<platform>.tar.gz, and `sha256` is 64
+          # pyharness-<version>-<platform>.tar.gz, and `sha256` is 64
           # lowercase hex. A row the reader would reject fails the release
           # here - a lying manifest is worse than none. The v1 `binaries`
           # list stays limited to the original installer platforms
@@ -876,7 +876,7 @@ jobs:
           for binary in merged["binaries"]:
               platform, file_name, sha = binary["platform"], binary["file"], binary["sha256"]
               if platform in known:
-                  expected = f"prime-agent-{version}-{platform}.tar.gz"
+                  expected = f"pyharness-{version}-{platform}.tar.gz"
                   if file_name != expected or re.fullmatch(r"[0-9a-f]{64}", sha) is None:
                       sys.exit(
                           f"the update reader rejects artifact row {binary}: "
@@ -903,12 +903,12 @@ jobs:
                   "the channel manifest must carry a row for every known "
                   "platform (one build job per platform)"
               )
-          # Prime Agent 0.6+ npm clients consume package/tarball; native
+          # pyharness 0.6+ npm clients consume package/tarball; native
           # clients consume binaries. Keep both routes in one manifest.
           document = {
               "version": f"v{version}",
-              "package": "prime-agent",
-              "tarball": f"releases/v{version}/prime-agent-{version}.tgz",
+              "package": "pyharness",
+              "tarball": f"releases/v{version}/pyharness-{version}.tgz",
           }
           v1_rows = [row for row in rows if row["platform"] in v1_platforms]
           if v1_rows:
@@ -990,7 +990,7 @@ jobs:
           # the channel manifests reference. The homebrew-core source
           # tarball rides the GitHub release only (packagers pin it
           # there; the R2 pointers never name it).
-          for artifact in release-out/prime-agent-*.tar.gz release-out/prime-agent-*.tgz; do
+          for artifact in release-out/pyharness-*.tar.gz release-out/pyharness-*.tgz; do
             case "$artifact" in *-src.tar.gz) continue ;; esac
             aws s3 cp "$artifact" "s3://${R2_BUCKET}/${RELEASE_PREFIX}/$(basename "$artifact")" \
               --endpoint-url "$R2_ENDPOINT_URL" \
@@ -1210,8 +1210,8 @@ jobs:
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
           subject-path: |
-            release-out/prime-agent-*.tar.gz
-            release-out/prime-agent-*.tgz
+            release-out/pyharness-*.tar.gz
+            release-out/pyharness-*.tgz
             release-out/*.debug.gz
       - name: Attach to GitHub release
         if: ${{ !contains(github.ref_name, '-') }}
@@ -1222,8 +1222,8 @@ jobs:
           prerelease: false
           fail_on_unmatched_files: true
           files: |
-            release-out/prime-agent-*.tar.gz
-            release-out/prime-agent-*.tgz
+            release-out/pyharness-*.tar.gz
+            release-out/pyharness-*.tgz
             release-out/*.debug.gz
             release-out/SHA256SUMS
             release-out/*.json
@@ -1233,8 +1233,8 @@ jobs:
         with:
           name: nightly-refresh-payload
           path: |
-            release-out/prime-agent-*.tar.gz
-            release-out/prime-agent-*.tgz
+            release-out/pyharness-*.tar.gz
+            release-out/pyharness-*.tgz
             release-out/*.debug.gz
             release-out/SHA256SUMS
             release-out/*.json
@@ -1368,7 +1368,7 @@ jobs:
               if not name.endswith(('.tar.gz', '.tgz')):
                   continue
               body = name[: -len('.tar.gz')] if name.endswith('.tar.gz') else name[: -len('.tgz')]
-              match = re.fullmatch(r'prime-agent-([0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+)(?:-.+)?', body)
+              match = re.fullmatch(r'pyharness-([0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+)(?:-.+)?', body)
               if match is None:
                   raise SystemExit(f"cannot read a version from the nightly asset name: {name!r}")
               versions.append('v' + match.group(1))
@@ -1382,8 +1382,8 @@ jobs:
               fi
             fi
             gh release upload nightly \
-              release-out/prime-agent-*.tar.gz \
-              release-out/prime-agent-*.tgz \
+              release-out/pyharness-*.tar.gz \
+              release-out/pyharness-*.tgz \
               release-out/*.debug.gz \
               release-out/SHA256SUMS \
               release-out/*.json \
@@ -1402,8 +1402,8 @@ jobs:
               --title "nightly" \
               --notes "The rolling nightly channel (beta builds). Assets are overwritten per -beta* tag; beta.json names the current build." \
               --prerelease \
-              release-out/prime-agent-*.tar.gz \
-              release-out/prime-agent-*.tgz \
+              release-out/pyharness-*.tar.gz \
+              release-out/pyharness-*.tgz \
               release-out/*.debug.gz \
               release-out/SHA256SUMS \
               release-out/*.json

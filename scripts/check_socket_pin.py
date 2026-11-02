@@ -47,27 +47,27 @@ def launch_daemon(command, expected, root, env):
 
 def install_launcher(binary, root, env):
     prefix = root / 'prefix'
-    payload = prefix / 'share/prime-agent'
+    payload = prefix / 'share/pyharness'
     payload.mkdir(parents=True)
-    (payload / 'prime-agent').symlink_to(binary)
+    (payload / 'pyharness').symlink_to(binary)
     installer = Path(__file__).resolve().parents[1].joinpath('install-rust.sh').read_text()
     marker = '# --- the launcher (the takeover lives here)'
     section = marker + installer.split(marker, 1)[1]
     section = section.split('# The cmd/PowerShell launcher twin', 1)[0]
-    script = '''PREFIX="$PRIME_AGENT_RUST_PREFIX"
+    script = '''PREFIX="$PYHARNESS_RUST_PREFIX"
 bin_dir="$PREFIX/bin"
 mkdir -p "$bin_dir"
-launcher="$bin_dir/prime-agent"
+launcher="$bin_dir/pyharness"
 WINDOWS=no
 say() { :; }; note() { :; }; die() { echo "$*" >&2; exit 1; }
 trap '[ -z "${launcher_tmp:-}" ] || rm -f "$launcher_tmp"' EXIT
 ''' + section
     installed = subprocess.run(['sh', '-eu'], input=script,
-                               env={**env, 'PRIME_AGENT_RUST_PREFIX': str(prefix)},
+                               env={**env, 'PYHARNESS_RUST_PREFIX': str(prefix)},
                                cwd=root, text=True, capture_output=True, timeout=15)
     if installed.returncode:
         raise RuntimeError('launcher extraction failed: ' + installed.stderr)
-    return prefix / 'bin/prime-agent'
+    return prefix / 'bin/pyharness'
 
 
 def main():
@@ -78,22 +78,22 @@ def main():
                'scope': 'Actual installed launcher: legacy namespace with the npm-bridge marker, explicit override, UTF-8 byte fallback under Darwin uname shim, and the installer stop probe.'}
     fallback_dir = None
     try:
-        binary = Path(os.environ['PA_RUST_BINARY']).resolve()
+        binary = Path(os.environ['PH_RUST_BINARY']).resolve()
         receipt['binary_sha256'] = digest(binary)
         with tempfile.TemporaryDirectory(prefix='pa-pin-', dir='/tmp') as temp:
             owned = Path(temp) / 'rust'
             owned.mkdir()
             env = env_for(owned)
             tmp = owned / 'tmp'
-            legacy = tmp / f'prime-agent-{os.getuid()}/daemon.sock'
+            legacy = tmp / f'pyharness-{os.getuid()}/daemon.sock'
             command = install_launcher(binary, owned, env)
-            marker = owned / 'prefix/share/.prime-agent-npm-bridge/legacy-daemon-socket'
+            marker = owned / 'prefix/share/.pyharness-npm-bridge/legacy-daemon-socket'
             marker.parent.mkdir()
             marker.write_text('fixture\n')
             receipt['runs']['legacy'] = launch_daemon([str(command)], legacy, owned, env)
             explicit = tmp / 'explicit.sock'
             receipt['runs']['override'] = launch_daemon([str(command), '--daemon-socket', str(explicit)], explicit, owned,
-                {**env, 'PRIME_AGENT_DAEMON_SOCKET': str(explicit)})
+                {**env, 'PYHARNESS_DAEMON_SOCKET': str(explicit)})
             marker.unlink()
             shim = owned / 'shim'
             shim.mkdir()
@@ -103,9 +103,9 @@ def main():
                 path.write_text(f'#!/bin/sh\nprintf "%s\\n" "{text}"\n')
                 path.chmod(0o755)
             long_tmp = str(owned / ('é' * 25))
-            long_pin = f'{long_tmp}/prime-agent-rust-{fixture_uid}/daemon.sock'
+            long_pin = f'{long_tmp}/pyharness-rust-{fixture_uid}/daemon.sock'
             assert len(long_pin) <= 103 and len(long_pin.encode()) > 103, long_pin
-            candidate = Path(f'/tmp/prime-agent-rust-{fixture_uid}')
+            candidate = Path(f'/tmp/pyharness-rust-{fixture_uid}')
             # Atomic reservation: a collision never authorizes cleanup.
             candidate.mkdir(mode=0o700, exist_ok=False)
             fallback_dir = candidate

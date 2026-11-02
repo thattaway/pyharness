@@ -69,7 +69,7 @@ glibc-gate:
 # Local mirror of the release build-job gates:
 # release build against the committed lockfile, deterministic tarball assembly,
 # then end-to-end verification of the host-target artifact. The vendored
-# prime-agent-runtime/ at the repo root is the default runtime sidecar
+# pyharness-runtime/ at the repo root is the default runtime sidecar
 # (kernel-packaging lane); pass RUNTIME_DIR to re-anchor it.
 VERSION := $(shell sed -n 's/^version *= *"\([^"]*\)".*/\1/p' Cargo.toml | head -1)
 TARGET := $(shell rustc -vV | sed -n 's/^host: //p')
@@ -78,7 +78,7 @@ RUNTIME_FLAG = $(if $(RUNTIME_DIR),--runtime-dir $(RUNTIME_DIR),)
 
 # Bundled catalog assets (catalog spec §3.2 layer 2): generated at build
 # time, never committed. Release and continuous CI ship the live catalog
-# (--network) at one prime-agent-catalog commit per run (`bundle_catalog.py
+# (--network) at one pyharness-catalog commit per run (`bundle_catalog.py
 # resolve-ref`). The local dry-runs default to the offline fixture snapshot
 # (it passes the full packer gates); CATALOG_ASSETS_MODE=network switches
 # them to the live fetch of the catalog's main.
@@ -89,10 +89,10 @@ CATALOG_ASSETS_FLAG = --catalog-assets $(CATALOG_ASSETS_DIR)
 # Mirror the Linux CI split: Cargo's executable remains unstripped and the
 # archive receives a separate shipped ELF plus its detached decoder.
 ifneq ($(filter %-unknown-linux-gnu,$(TARGET)),)
-RELEASE_BINARY = target/release/dist/prime-agent
-RELEASE_DECODER = target/release/dist/prime-agent-$(VERSION)-$(if $(filter aarch64-%,$(TARGET)),linux-arm64,linux-x64).debug.gz
+RELEASE_BINARY = target/release/dist/pyharness
+RELEASE_DECODER = target/release/dist/pyharness-$(VERSION)-$(if $(filter aarch64-%,$(TARGET)),linux-arm64,linux-x64).debug.gz
 RELEASE_ASSEMBLE_FLAGS = --binary $(RELEASE_BINARY) --decoder $(RELEASE_DECODER)
-RELEASE_SPLIT = python3 scripts/release/split_debug.py --binary target/release/prime-agent --shipped $(RELEASE_BINARY) --out target/release/dist --version "$(VERSION)" --target "$(TARGET)"
+RELEASE_SPLIT = python3 scripts/release/split_debug.py --binary target/release/pyharness --shipped $(RELEASE_BINARY) --out target/release/dist --version "$(VERSION)" --target "$(TARGET)"
 RELEASE_VERIFY_DECODER = python3 scripts/release/verify_decoders.py target/release/dist
 RELEASE_PACKAGE_BUILD = cargo build --release --locked --workspace
 RELEASE_PACKAGE_FLAGS = --binary $(RELEASE_BINARY) --decoder $(RELEASE_DECODER) --skip-build
@@ -165,15 +165,15 @@ package:
 catalog-assets-gates:
 	python3 scripts/release/test_catalog_assets.py
 
-# Local one-command perf run (crates/pa-perf/README.md documents the
+# Local one-command perf run (crates/ph-perf/README.md documents the
 # scenario set): build the release binaries, generate the small corpus,
 # bench every scenario 10x, print the table. Run it on a quiet machine —
 # the numbers are wall-clock latencies of the interactive surfaces.
 perf:
-	cargo build --release --locked -p pa-cli --bin prime-agent -p pa-perf --bin pa-perf
-	./target/release/pa-perf run --binary target/release/prime-agent \
+	cargo build --release --locked -p ph-cli --bin pyharness -p ph-perf --bin ph-perf
+	./target/release/ph-perf run --binary target/release/pyharness \
 		--profile small --out target/perf --runs 10
-	./target/release/pa-perf report --baseline crates/pa-perf/baseline.json \
+	./target/release/ph-perf report --baseline crates/ph-perf/baseline.json \
 		--results target/perf/results/*.json
 
 
@@ -201,7 +201,7 @@ shard-gates:
 
 .PHONY: check deny windows-cross actionlint glibc-gate release-dry-run continuous-dry-run audit-build package catalog-assets catalog-assets-fixture catalog-assets-gates fold-gates restamp-gates shard-gates perf
 
-# Offline packaging contract tests for updaters shipped since Prime Agent 0.6.
+# Offline packaging contract tests for updaters shipped since pyharness 0.6.
 legacy-upgrade-gates:
 	python3 scripts/release/test_native_compat.py
 	python3 scripts/release/test_npm_bridge.py

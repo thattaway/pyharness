@@ -249,7 +249,7 @@ def main():
     try:
         assert sys.platform == 'linux', 'hosted Linux only'
         with tempfile.TemporaryDirectory(prefix='pa-catalog-', dir='/tmp') as folder:
-            binary = Path(os.environ['PA_RUST_BINARY']).resolve()
+            binary = Path(os.environ['PH_RUST_BINARY']).resolve()
             observed = receipt['run'] = {'binary_sha256': digest(binary)}
             try:
                 observe(binary, Path(folder) / 'rust', observed)

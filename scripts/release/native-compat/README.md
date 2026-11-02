@@ -5,9 +5,9 @@ release and whenever validating an installed release for rollback. Rust ships
 the real historical assets to preserve that contract. They are not loaded by
 Rust's renderer or image implementation.
 
-- `theme/prime.json` and `export-html/template.html` are unmodified from
-  Prime Agent v0.9.8, commit `7d442aafa985f9342134fac16c2ef41f03fb45c1`, paths
-  `packages/coding-agent/src/modes/interactive/theme/prime.json` and
+- `theme/pyharness.json` and `export-html/template.html` are unmodified from
+  pyharness v0.9.8, commit `7d442aafa985f9342134fac16c2ef41f03fb45c1`, paths
+  `packages/coding-agent/src/modes/interactive/theme/pyharness.json` and
   `packages/coding-agent/src/core/export-html/template.html`.
 - `photon_rs_bg.wasm` and `PHOTON-LICENSE.md` are unmodified from
   `@silvia-odwyer/photon-node` 0.3.4, the dependency used by that release.

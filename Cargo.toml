@@ -1,16 +1,16 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/pa-telemetry",
-    "crates/pa-types",
-    "crates/pa-ai",
-    "crates/pa-models",
-    "crates/pa-agent",
-    "crates/pa-core",
-    "crates/pa-daemon",
-    "crates/pa-tui",
-    "crates/pa-cli",
-    "crates/pa-perf",
+    "crates/ph-telemetry",
+    "crates/ph-types",
+    "crates/ph-ai",
+    "crates/ph-models",
+    "crates/ph-agent",
+    "crates/ph-core",
+    "crates/ph-daemon",
+    "crates/ph-tui",
+    "crates/ph-cli",
+    "crates/ph-perf",
 ]
 
 # Crossterm 0.28.1's kitty support check holds the process-wide event reader
@@ -36,10 +36,10 @@ anyhow = "1"
 tokio = { version = "1", features = ["full"] }
 tokio-util = "0.7"
 tracing = { version = "0.1", features = ["attributes"] }
-pa-telemetry = { path = "crates/pa-telemetry" }
-pa-types = { path = "crates/pa-types" }
-pa-ai = { path = "crates/pa-ai" }
-pa-agent = { path = "crates/pa-agent" }
+ph-telemetry = { path = "crates/ph-telemetry" }
+ph-types = { path = "crates/ph-types" }
+ph-ai = { path = "crates/ph-ai" }
+ph-agent = { path = "crates/ph-agent" }
 thiserror = "2"
 futures = "0.3"
 toml = "0.9"
@@ -50,8 +50,8 @@ proptest = { version = "1.11", default-features = false, features = ["std"] }
 unsafe_code = "forbid"
 
 [workspace.lints.clippy]
-# The pedantic gate the five clippy campaigns earned (pa-daemon #3029,
-# pa-cli #3050, pa-core #3093, the small crates #3110, pa-tui #3134):
+# The pedantic gate the five clippy campaigns earned (ph-daemon #3029,
+# ph-cli #3050, ph-core #3093, the small crates #3110, ph-tui #3134):
 # every workspace member is pedantic-clean; CI's -D warnings bar turns
 # this warn class into errors, and the per-crate #![allow] exceptions
 # (the design-choice classes, each with its in-code justification) keep

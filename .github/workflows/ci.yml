@@ -1,4 +1,4 @@
-# CI gates for the prime-agent Rust port: the tip-compiles-tests guarantee
+# CI gates for the pyharness Rust port: the tip-compiles-tests guarantee
 # plus PR gating, in one workflow (the shape of the TS product's ci.yml).
 # `.github/workflows/` is the one home for workflow files; the
 # windows-cross/windows/deny jobs run live in this file alongside the unix
@@ -327,10 +327,10 @@ jobs:
           python3 scripts/ci_test_shard.py --shard ${{ matrix.shard }} --total ${{ env.SHARD_COUNT }}             --crates "${{ needs.changes.outputs.crates }}" --print-selection
       # Sibling-binary parity: the serial `cargo test --workspace` built every
       # workspace bin into the shared profile dir as a side effect, and the
-      # e2e suites look each other's binaries up there (pa-cli's
-      # daemon_commands_e2e spawns pa-daemon this way). A shard builds its
+      # e2e suites look each other's binaries up there (ph-cli's
+      # daemon_commands_e2e spawns ph-daemon this way). A shard builds its
       # test subset only, so the bins are built explicitly once up front —
-      # first measured on run 36085993711, where the missing pa-daemon bin
+      # first measured on run 36085993711, where the missing ph-daemon bin
       # failed exactly this suite. A leg with no selected units skips this
       # (and runs nothing below); the push wave always selects units, so its
       # behavior is unchanged.
@@ -343,7 +343,7 @@ jobs:
       # 36764911023). The installer's bootstrap handoff readies it first.
       - name: Bootstrap the kernel venv (ready before the kernel e2e units)
         if: steps.selection.outputs.units != '0'
-        run: ./target/debug/prime-agent --prime-agent-bootstrap
+        run: ./target/debug/pyharness --pyharness-bootstrap
       - name: Prepare pinned TS frame comparison binary
         if: matrix.shard == 1 && steps.selection.outputs.units != '0' && hashFiles('scripts/check_link_frames.py', 'scripts/check_ipython_diff_frames.py') != ''
         env:
@@ -353,12 +353,12 @@ jobs:
           reference="${RUNNER_TEMP}/frame-ts-reference"
           mkdir -p "${reference}/package"
           gh release download v0.9.8 --repo "${GITHUB_REPOSITORY}" \
-            --pattern prime-agent-0.9.8-linux-x64.tar.gz --dir "${reference}"
-          archive="${reference}/prime-agent-0.9.8-linux-x64.tar.gz"
+            --pattern pyharness-0.9.8-linux-x64.tar.gz --dir "${reference}"
+          archive="${reference}/pyharness-0.9.8-linux-x64.tar.gz"
           echo "83fb09129bf78e3e60268212cd70932166591b15188caa70c1b0efbcc76235e2  ${archive}" | sha256sum --check
           tar -xzf "${archive}" -C "${reference}/package"
-          echo "PA_TS_ARCHIVE=${archive}" >> "${GITHUB_ENV}"
-          echo "PA_TS_BINARY=${reference}/package/prime-agent" >> "${GITHUB_ENV}"
+          echo "PH_TS_ARCHIVE=${archive}" >> "${GITHUB_ENV}"
+          echo "PH_TS_BINARY=${reference}/package/pyharness" >> "${GITHUB_ENV}"
       # The real-binary lifecycle checks drive the debug binary through owned
       # daemons, PTYs and loopback providers only. One leg is enough.
       - name: Run the rust lifecycle checks
@@ -367,10 +367,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "${RUNNER_TEMP}/lifecycle-check-receipts"
-          export PA_RUST_BINARY="${GITHUB_WORKSPACE}/target/debug/prime-agent"
-          export PRIME_AGENT_KERNEL_PYTHON="${HOME}/.prime/agent/kernel-venv/bin/python"
-          export PA_E2E_KERNEL_PYTHON="${PRIME_AGENT_KERNEL_PYTHON}"
-          test -x "${PRIME_AGENT_KERNEL_PYTHON}"
+          export PH_RUST_BINARY="${GITHUB_WORKSPACE}/target/debug/pyharness"
+          export PYHARNESS_KERNEL_PYTHON="${HOME}/.pyharness/kernel-venv/bin/python"
+          export PH_E2E_KERNEL_PYTHON="${PYHARNESS_KERNEL_PYTHON}"
+          test -x "${PYHARNESS_KERNEL_PYTHON}"
           check_status=0
           python3 scripts/test_lifecycle_lib.py || check_status=1
           # Discover independently added checks so feature PRs do not
@@ -430,7 +430,7 @@ jobs:
           python3 scripts/test_ci_test_shard_summary.py
           python3 scripts/ci_test_shard_summary.py --total ${{ env.SHARD_COUNT }} --dir manifests
 
-  # The vendored runtime suite (prime-agent-runtime): the kernel-side Python
+  # The vendored runtime suite (pyharness-runtime): the kernel-side Python
   # (`bash()`, the repl protocol, the bounded-await contract) has no Rust test,
   # so this is its only CI gate — CPython 3.11, the minimum the runtime
   # supports and the version the kernel venv pins.
@@ -450,7 +450,7 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Run the runtime suite (CPython 3.11)
         run: |
-          cd prime-agent-runtime
+          cd pyharness-runtime
           uv run --python 3.11 python -m unittest discover -s test
 
   # The Windows job set + the supply-chain deny gate:

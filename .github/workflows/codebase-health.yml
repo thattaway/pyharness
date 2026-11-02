@@ -69,7 +69,7 @@ jobs:
                   i += 2
           findings = []
           for path, source in changed:
-              if path == 'crates/pa-ai/src/models_generated.rs':
+              if path == 'crates/ph-ai/src/models_generated.rs':
                   continue
               before_path = source or path
               old = subprocess.run(git + ['show', f'{base}:{before_path}'],

@@ -8,7 +8,7 @@ The window bound is 250ms (instead of upstream's 2000ms), held in 10ms poll slic
 
 The `event-stream` feature's waker machinery (upstream, unchanged: `WAKE_TOKEN`,
 the `Waker` type, `InternalEventReader::waker`) compiles in for the product
-(`crates/pa-tui` enables the feature), and three additive exports make it
+(`crates/ph-tui` enables the feature), and three additive exports make it
 usable by the app's single input-reader thread:
 
 * `event::poll_opt(timeout: Option<Duration>)` — the existing `poll` with the
@@ -25,9 +25,9 @@ usable by the app's single input-reader thread:
 * `InternalEventReader::try_waker` — the non-panicking `waker()` variant
   (`Option` instead of `.expect("reader source not set")`).
 
-The app reader (`crates/pa-tui/src/input.rs`) parks on `poll_opt(None)` when its
+The app reader (`crates/ph-tui/src/input.rs`) parks on `poll_opt(None)` when its
 sequence guard holds nothing, keeps the 10ms bounded poll while the kitty-probe
-window is open (`pa_tui::enhanced_keys::query_in_flight`) — the probe's slices
+window is open (`ph_tui::enhanced_keys::query_in_flight`) — the probe's slices
 and the reader share the process-global event-reader lock, and a park would
 starve them — and its stop flag is now observed through `Waker::wake()` at
 teardown instead of a poll tick. Behavior on the wire (events, parse order,
@@ -60,7 +60,7 @@ rejected on that misclassification distribution: it would silently drop
 the enhancement for the RTT>50ms class (the product's primary remote-SSH
 deployment shape) while buying only the silent class's raced-transition
 stall, which no user rides. The timed contract is locked by
-`crates/pa-cli/tests/kitty_verdict_time_e2e.rs`.
+`crates/ph-cli/tests/kitty_verdict_time_e2e.rs`.
 
 # Every readiness token of a poll is handled (2026-10-21)
 
@@ -81,7 +81,7 @@ a copy of `vendor/crossterm` without the `[[example]]` entries (the examples are
 `src/event/source/windows.rs` `try_read` checked its timeout after every record, including records
 that map to no event (the `VK_SHIFT`/`VK_CONTROL`/`VK_MENU` key records the console synthesizes
 around each shifted character of a paste). A `poll(Duration::ZERO)` therefore returned `false`
-while input was still queued, and the app reader (`crates/pa-tui/src/input.rs`), which drains one
+while input was still queued, and the app reader (`crates/ph-tui/src/input.rs`), which drains one
 terminal write per round until that poll says empty, split a pasted line at its first capital.
 Now a record that produces no event loops straight to the next one while the console still holds
 records; the timeout applies only when the buffer is empty. Upstream crossterm has the same code.

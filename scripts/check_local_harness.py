@@ -115,10 +115,10 @@ def run_case(binary, root, observation):
         (root / name).mkdir(parents=True)
     cwd, agent, sessions = root / 'work', root / 'agent', root / 'sessions'
     env = {key: os.environ[key] for key in ('PATH', 'LANG', 'LC_ALL', 'TZ',
-           'PRIME_AGENT_KERNEL_PYTHON', 'PA_E2E_KERNEL_PYTHON') if key in os.environ}
+           'PYHARNESS_KERNEL_PYTHON', 'PH_E2E_KERNEL_PYTHON') if key in os.environ}
     env.update(HOME=str(root / 'home'), TMPDIR=str(root / 'tmp'), DO_NOT_TRACK='1',
-               PI_OFFLINE='1', PI_CODING_AGENT_DIR=str(agent), PRIME_AGENT_CODING_AGENT_DIR=str(agent),
-               PI_SESSION_DIR=str(sessions), PRIME_AGENT_SESSION_DIR=str(sessions),
+               PI_OFFLINE='1', PI_CODING_AGENT_DIR=str(agent), PYHARNESS_CODING_AGENT_DIR=str(agent),
+               PI_SESSION_DIR=str(sessions), PYHARNESS_SESSION_DIR=str(sessions),
                XDG_CONFIG_HOME=str(root / 'config'), XDG_CACHE_HOME=str(root / 'cache'),
                XDG_DATA_HOME=str(root / 'data'))
     # Never inject RLM_* harness paths, which would mask missing runtime exports.
@@ -159,7 +159,7 @@ def run_case(binary, root, observation):
             assert probe['env']['RLM_SESSION_DIR'] == str(artifact), probe['env']
             assert probe['env']['RLM_HARNESS_STATE_DIR'] == str(artifact / 'harness'), probe['env']
             # RLM_GLOBAL_HARNESS_STATE_DIR stays unset; the runtime resolves
-            # PRIME_AGENT_CODING_AGENT_DIR/harness, checked on disk below.
+            # PYHARNESS_CODING_AGENT_DIR/harness, checked on disk below.
             assert probe['env']['RLM_GLOBAL_HARNESS_STATE_DIR'] is None, probe['env']
             observation[phase]['kernel_env'] = probe.pop('env')
             assert probe['local_ids'] == ([] if phase == 'other' else ['parity-local']), probe
@@ -193,7 +193,7 @@ def main():
     try:
         assert sys.platform == 'linux', 'requires Linux hosted CI binaries'
         with tempfile.TemporaryDirectory(prefix='local-harness-check-') as temp:
-            binary = Path(os.environ['PA_RUST_BINARY']).resolve()
+            binary = Path(os.environ['PH_RUST_BINARY']).resolve()
             observation = result['run'] = {'binary': str(binary), 'binary_sha256': digest(binary)}
             try:
                 run_case(binary, Path(temp) / 'rust', observation)

@@ -148,11 +148,11 @@ def run_case(binary, scenario, root, observation):
         (root / name).mkdir(parents=True)
     agent, sessions, cwd = root / 'agent', root / 'sessions', root / 'work'
     env = {key: os.environ[key] for key in ('PATH', 'LANG', 'LC_ALL', 'TZ',
-           'PRIME_AGENT_KERNEL_PYTHON', 'PA_E2E_KERNEL_PYTHON') if key in os.environ}
+           'PYHARNESS_KERNEL_PYTHON', 'PH_E2E_KERNEL_PYTHON') if key in os.environ}
     env.update(HOME=str(root / 'home'), TMPDIR=str(root / 'tmp'), DO_NOT_TRACK='1',
                PI_OFFLINE='1', PI_CODING_AGENT_DIR=str(agent),
-               PRIME_AGENT_CODING_AGENT_DIR=str(agent), PI_SESSION_DIR=str(sessions),
-               PRIME_AGENT_SESSION_DIR=str(sessions), XDG_CONFIG_HOME=str(root / 'config'),
+               PYHARNESS_CODING_AGENT_DIR=str(agent), PI_SESSION_DIR=str(sessions),
+               PYHARNESS_SESSION_DIR=str(sessions), XDG_CONFIG_HOME=str(root / 'config'),
                XDG_CACHE_HOME=str(root / 'cache'), XDG_DATA_HOME=str(root / 'data'),
                PYTHONPATH=skill_pythonpath())
     env[TAG] = str(root)
@@ -242,7 +242,7 @@ def main():
               'check': 'Each operation schedules and persists a completed outcome. Every captured auxiliary request must match the exact expected control; request counts and full bodies remain in runs.'}
     try:
         assert sys.platform == 'linux', 'requires Linux hosted CI'
-        binary = Path(os.environ['PA_RUST_BINARY']).resolve()
+        binary = Path(os.environ['PH_RUST_BINARY']).resolve()
         result['binary'] = {'path': str(binary), 'sha256': digest(binary)}
         with tempfile.TemporaryDirectory(prefix='minimum-reasoning-check-') as temp:
             for scenario in ('compact', 'branch', 'refine'):

@@ -346,7 +346,7 @@ class NotificationTests(unittest.TestCase):
         self.assertIn("untrusted evidence", payload["text"])
         self.assertEqual(
             payload["attachments"][0]["title_link"],
-            "https://github.com/PrimeIntellect-ai/prime-agent/discussions/1",
+            "https://github.com/thattaway/pyharness/discussions/1",
         )
         self.assertNotIn("thread_ts", payload)
         self.assertFalse(payload["unfurl_links"])
@@ -479,7 +479,7 @@ class NotificationTests(unittest.TestCase):
             {"event": "pull_request"},
             {"event": "pull_request_target"},
             {"path": ".github/workflows/other.yml"},
-            {"head_repository": {"full_name": "contributor/prime-agent"}},
+            {"head_repository": {"full_name": "contributor/pyharness"}},
             {"head_branch": "feature/test"},
         ]:
             with (

@@ -1,5 +1,5 @@
 # Daily report of Prime Inference models whose /models entry lacks specs
-# (prime-agent drops them from its catalog). A separate workflow that no
+# (pyharness drops them from its catalog). A separate workflow that no
 # branch protection requires: it fails red on upstream data, which must not
 # block continuous, nightly, or release runs.
 name: Prime Inference specs

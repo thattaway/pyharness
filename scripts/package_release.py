@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
-"""Assemble the prime-agent release artifact (kernel packaging).
+"""Assemble the pyharness release artifact (kernel packaging).
 
 Ports the TS release packaging (scripts/assemble-release-archives.mjs +
 packages/coding-agent/scripts/copy-binary-assets.mjs) to this repo's layout:
 
-  <out-dir>/prime-agent-<version>-<platform>/     staged exe-adjacent layout
-  <out-dir>/prime-agent-<version>-<platform>.tar.gz
+  <out-dir>/pyharness-<version>-<platform>/     staged exe-adjacent layout
+  <out-dir>/pyharness-<version>-<platform>.tar.gz
   <out-dir>/binaries.json                          release manifest (version pin)
   <out-dir>/SHA256SUMS                             integrity sums for the artifacts
 
 The staged layout is the exe-adjacent packaging the binary resolves at
 runtime (PI_PACKAGE_DIR override, else the directory of the executable):
 
-  prime-agent            the binary (mode 755; prime-agent.exe on win32-x64)
+  pyharness            the binary (mode 755; pyharness.exe on win32-x64)
   package.json           version manifest ({"version": <version>, piConfig})
   README.md
   LICENSE
   models.bundled.json       bundled catalog assets (spec §3.2 layer 2),
   mcp-services.bundled.json staged beside the executable
-  prime-agent-runtime/   the kernel runtime sidecar (dev caches excluded)
+  pyharness-runtime/   the kernel runtime sidecar (dev caches excluded)
   skills/                built-in skills
   docs/                  user-facing docs
 
@@ -66,7 +66,7 @@ from assemble_artifacts import (  # noqa: E402
     fail_if_decoder_in_archive,
     fail_if_decoder_in_tree,
 )
-# `--root` re-anchors asset discovery (workspace version, prime-agent-runtime,
+# `--root` re-anchors asset discovery (workspace version, pyharness-runtime,
 # skills, docs, README) so integration tests can package synthetic trees.
 
 
@@ -89,19 +89,19 @@ EXCLUDED_SUFFIXES = (".pyc", ".egg-info")
 # must carry its manifest and the REPL entry point, and the bundled catalog
 # assets must sit beside the executable.
 REQUIRED_FILES = (
-    "prime-agent",
+    "pyharness",
     "package.json",
     "README.md",
     "LICENSE",
     "models.bundled.json",
     "mcp-services.bundled.json",
-    "prime-agent-runtime/pyproject.toml",
-    "prime-agent-runtime/src/rlm/repl.py",
+    "pyharness-runtime/pyproject.toml",
+    "pyharness-runtime/src/rlm/repl.py",
 )
-REQUIRED_DIRS = ("prime-agent-runtime/src/rlm", "skills")
+REQUIRED_DIRS = ("pyharness-runtime/src/rlm", "skills")
 
 # Tree assets copied with the exclusion filter; everything else is a single file.
-TREE_ASSETS = ("prime-agent-runtime", "skills")
+TREE_ASSETS = ("pyharness-runtime", "skills")
 
 
 def parse_args(argv):
@@ -110,7 +110,7 @@ def parse_args(argv):
     parser.add_argument("--binary", type=Path, help="stage this binary instead of building")
     parser.add_argument("--decoder", type=Path, help="separate Linux decoder for --binary")
     parser.add_argument("--skip-build", action="store_true",
-                        help="reuse target/release/prime-agent (prime-agent.exe on"
+                        help="reuse target/release/pyharness (pyharness.exe on"
                              " win32-x64) without building")
     parser.add_argument("--out-dir", type=Path, help="output directory (default: target/release-package)")
     parser.add_argument("--platform", help="platform tag (default: derived from this machine)")
@@ -152,12 +152,12 @@ def release_platform():
 
 
 def binary_name_for_platform(tag):
-    """The staged binary name for one platform tag: `prime-agent.exe` on
+    """The staged binary name for one platform tag: `pyharness.exe` on
     win32-x64 (the name Cargo's MSVC linker emits and the installer's
-    `.exe`-aware layout expects), `prime-agent` everywhere else — the same
+    `.exe`-aware layout expects), `pyharness` everywhere else — the same
     naming rule the release pipeline applies
     (`scripts/release/assemble_artifacts.py` `binary_name_for_target`)."""
-    return "prime-agent.exe" if tag == "win32-x64" else "prime-agent"
+    return "pyharness.exe" if tag == "win32-x64" else "pyharness"
 
 
 def include_path(relative, extra_excluded_names=frozenset(), extra_excluded_suffixes=()):
@@ -210,7 +210,7 @@ def resolve_catalog_assets(args):
         raise SystemExit(
             "error: missing bundled catalog assets: run "
             "`python3 scripts/release/bundle_catalog.py generate "
-            "--catalog-dir <prime-agent-catalog>` (CI: --network; offline "
+            "--catalog-dir <pyharness-catalog>` (CI: --network; offline "
             "builds: --fixture) and pass --catalog-assets <dir>"
         )
     validate_bundled_catalog_dir(args.catalog_assets)
@@ -227,7 +227,7 @@ def stage(root, binary, version, stage_dir, catalog_assets, binary_name):
     for name in BUNDLED_CATALOG_FILES:
         shutil.copy2(catalog_assets / name, stage_dir / name)
     for name in TREE_ASSETS:
-        if name == "prime-agent-runtime":
+        if name == "pyharness-runtime":
             copy_tree(root / name, stage_dir / name,
                       extra_excluded_names=RUNTIME_EXCLUDED_NAMES,
                       extra_excluded_suffixes=RUNTIME_EXCLUDED_SUFFIXES)
@@ -243,11 +243,11 @@ def stage(root, binary, version, stage_dir, catalog_assets, binary_name):
     (stage_dir / "package.json").write_text(
         json.dumps(
             {
-                "name": "prime-agent",
+                "name": "pyharness",
                 "version": version,
-                "description": "Prime Agent: the RLM coding agent (Rust build)",
-                "bin": {"prime-agent": binary_name},
-                "piConfig": {"name": "prime-agent", "configDir": ".prime/agent"},
+                "description": "pyharness: the RLM coding agent (Rust build)",
+                "bin": {"pyharness": binary_name},
+                "piConfig": {"name": "pyharness", "configDir": ".pyharness"},
             },
             indent=2,
         )
@@ -260,7 +260,7 @@ def validate(stage_dir, version, binary_name):
         if not (stage_dir / name).is_dir():
             raise SystemExit(f"error: missing binary asset directory: {name}")
     for name in REQUIRED_FILES:
-        path = stage_dir / (binary_name if name == "prime-agent" else name)
+        path = stage_dir / (binary_name if name == "pyharness" else name)
         if not path.is_file():
             raise SystemExit(f"error: missing binary asset: {path.name}")
     if not os.access(stage_dir / binary_name, os.X_OK):
@@ -284,7 +284,7 @@ def pin_version(binary, stage_dir, version, binary_name):
             env={**os.environ, "PI_PACKAGE_DIR": empty},
         )
     if probe.returncode != 0:
-        raise SystemExit(f"error: prime-agent --version failed: {probe.stderr.strip()}")
+        raise SystemExit(f"error: pyharness --version failed: {probe.stderr.strip()}")
     compiled = probe.stdout.strip()
     if compiled != version:
         raise SystemExit(
@@ -345,7 +345,7 @@ def main(argv=None):
     binary_name = binary_name_for_platform(tag)
     out_dir = (args.out_dir or root / "target" / "release-package").resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
-    stage_dir = out_dir / f"prime-agent-{version}-{tag}"
+    stage_dir = out_dir / f"pyharness-{version}-{tag}"
 
     if args.binary:
         binary = args.binary.resolve()
@@ -356,8 +356,8 @@ def main(argv=None):
         if not binary.is_file():
             raise SystemExit(f"error: no prebuilt binary at {binary}; drop --skip-build")
     else:
-        print("building the release binary (cargo build --release -p pa-cli)…")
-        subprocess.run(["cargo", "build", "--release", "-p", "pa-cli"], cwd=ROOT, check=True)
+        print("building the release binary (cargo build --release -p ph-cli)…")
+        subprocess.run(["cargo", "build", "--release", "-p", "ph-cli"], cwd=ROOT, check=True)
         binary = root / "target" / "release" / binary_name
 
     if tag.startswith("linux-"):
@@ -369,14 +369,14 @@ def main(argv=None):
             raise SystemExit(f"error: unsupported Linux platform: {tag}")
         if not args.binary:
             shipped_dir = root / "target" / "release" / "dist"
-            shipped = shipped_dir / "prime-agent"
+            shipped = shipped_dir / "pyharness"
             target = targets[tag]
             subprocess.run([sys.executable, str(ROOT / "scripts/release/split_debug.py"),
                             "--binary", str(binary), "--shipped", str(shipped),
                             "--out", str(shipped_dir), "--version", version,
                             "--target", target], cwd=ROOT, check=True)
             binary = shipped
-            args.decoder = shipped_dir / f"prime-agent-{version}-{tag}.debug.gz"
+            args.decoder = shipped_dir / f"pyharness-{version}-{tag}.debug.gz"
         if args.decoder is None:
             raise SystemExit("error: Linux --binary requires --decoder from split_debug.py")
         if debug_sections(binary):

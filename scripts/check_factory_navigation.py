@@ -158,7 +158,7 @@ def observe(binary, root, observed):
         snap('returned_page_closes', lambda text: 'FACTORY_CLOSED_INPUT_BARRIER' in text
              and RUN not in text)
         snap('child_stop_timeout_survives_page_close', lambda text:
-             'timed out waiting for the Prime Agent daemon response' in text
+             'timed out waiting for the pyharness daemon response' in text
              and RUN not in text)
         assert not server.prompts, 'navigation submitted a prompt'
         assert all(c.get('action') in ('graph', 'watch') for c in server.commands
@@ -201,7 +201,7 @@ def main():
     try:
         assert sys.platform == 'linux', 'hosted Linux only'
         with tempfile.TemporaryDirectory(prefix='pa-fnav-', dir='/tmp') as folder:
-            binary = Path(os.environ['PA_RUST_BINARY']).resolve()
+            binary = Path(os.environ['PH_RUST_BINARY']).resolve()
             observed = receipt['run'] = {'binary_sha256': digest(binary)}
             try:
                 observe(binary, Path(folder) / 'rust', observed)

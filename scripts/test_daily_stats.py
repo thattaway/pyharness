@@ -30,8 +30,8 @@ class DeliveryLookupTests(unittest.TestCase):
         gh = r'''
 gh() {
   [[ "$1" == api && "$2" == --paginate ]] || return 99
-  [[ "$3" == "repos/test/repo/actions/artifacts?name=prime-agent-stats-2026-10-05&per_page=100" ]] || return 99
-  [[ "$4" == --jq && "$5" == '.artifacts[] | select(.name == "prime-agent-stats-2026-10-05" and .expired == false) | .id' ]] || return 99
+  [[ "$3" == "repos/test/repo/actions/artifacts?name=pyharness-stats-2026-10-05&per_page=100" ]] || return 99
+  [[ "$4" == --jq && "$5" == '.artifacts[] | select(.name == "pyharness-stats-2026-10-05" and .expired == false) | .id' ]] || return 99
   printf '%s' "$API_IDS"
   printf '%s' "$API_ERROR" >&2
   return "$API_STATUS"
@@ -129,7 +129,7 @@ class ReportTests(unittest.TestCase):
 
     def test_report_compares_complete_rolling_windows_and_success_rate(self):
         report = stats.render_report(stats.parse_results(fixture(), DAY), DAY)
-        self.assertTrue(report.startswith("*Prime Agent Daily Stats (Oct 5, 2026)*\n"))
+        self.assertTrue(report.startswith("*pyharness Daily Stats (Oct 5, 2026)*\n"))
         lines = report.splitlines()
         self.assertTrue(lines[2].startswith("• *DAU: 100* · 🟢 ↑ 25.0%"))
         self.assertTrue(lines[3].startswith("• *WAU: 300* · 🟢 ↑ 50.0%"))

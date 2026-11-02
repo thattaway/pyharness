@@ -570,7 +570,7 @@ impl Supervisor {
             )
         };
 
-        let executable = std::env::current_exe().context("resolve ph-daemon executable")?;
+        let executable = worker_executable()?;
         let stderr_log_path =
             crate::worker_stderr::log_path(&self.options.agent_dir, &resident.worker_id);
         let stderr_log = crate::worker_stderr::open_for_spawn(&stderr_log_path)?;
@@ -1094,6 +1094,50 @@ mod tests {
             envs.get(std::ffi::OsStr::new(crate::worker::WORKER_ROLE_ENV)),
             Some(&Some(std::ffi::OsStr::new("1"))),
             "the internal identity still rides"
+        );
+    }
+}
+
+/// The executable a session worker launches from: the daemon's own binary.
+///
+/// Rebuilding from source (`cargo build`) replaces the binary file while a
+/// daemon started from the old build keeps running, so its path no longer
+/// exists. On Linux the running image stays reachable through
+/// `/proc/self/exe`, which also keeps the worker on the daemon's own version.
+fn worker_executable() -> anyhow::Result<std::path::PathBuf> {
+    let executable = std::env::current_exe().context("resolve ph-daemon executable")?;
+    Ok(running_image_fallback(executable, std::path::Path::new("/proc/self/exe")))
+}
+
+/// `executable` when it still exists on disk, else `running_image` when that exists.
+fn running_image_fallback(
+    executable: std::path::PathBuf,
+    running_image: &std::path::Path,
+) -> std::path::PathBuf {
+    if executable.exists() || !running_image.exists() {
+        return executable;
+    }
+    running_image.to_path_buf()
+}
+
+#[cfg(test)]
+mod worker_executable_tests {
+    use super::running_image_fallback;
+
+    #[test]
+    fn a_replaced_binary_falls_back_to_the_running_image() {
+        let dir = tempfile::tempdir().unwrap();
+        let present = dir.path().join("pyharness");
+        std::fs::write(&present, b"").unwrap();
+        let image = dir.path().join("image");
+        std::fs::write(&image, b"").unwrap();
+        let gone = dir.path().join("pyharness (deleted)");
+
+        assert_eq!(running_image_fallback(present.clone(), &image), present);
+        assert_eq!(running_image_fallback(gone.clone(), &image), image);
+        assert_eq!(
+            running_image_fallback(gone.clone(), &dir.path().join("missing")),
+            gone
         );
     }
 }

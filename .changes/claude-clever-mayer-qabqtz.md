@@ -1,0 +1,1 @@
+- pyharness: the product is renamed from Prime Agent (`pyharness` binary, `~/.pyharness` config, `PYHARNESS_*` variables), opens without a sign-in screen, never sends telemetry or uploads session traces, and only updates from a release server you configure.

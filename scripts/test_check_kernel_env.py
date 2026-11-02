@@ -44,13 +44,13 @@ class ProbeTests(unittest.TestCase):
         self.assertEqual(commands, ['printf \'%s\' "${PH_PREFIX_SENTINEL:-ABSENT}"'])
 
     def test_foreign_fixture_kernel_is_not_owned(self):
-        env = b'PYHARNESS_KERNEL_OWNER_PID=123\0PA_KERNEL_ENV_FIXTURE_ID=/other-fixture\0'
+        env = b'PYHARNESS_KERNEL_OWNER_PID=123\0PH_KERNEL_ENV_FIXTURE_ID=/other-fixture\0'
         with patch('check_kernel_env.process_identity', return_value=('proc:456', 'S')), \
                 patch('pathlib.Path.read_bytes', return_value=env):
             self.assertIsNone(owned_kernel(789, 123, '/fixture'))
 
     def test_wrong_kernel_owner_is_not_owned(self):
-        env = b'PYHARNESS_KERNEL_OWNER_PID=999\0PA_KERNEL_ENV_FIXTURE_ID=/fixture\0'
+        env = b'PYHARNESS_KERNEL_OWNER_PID=999\0PH_KERNEL_ENV_FIXTURE_ID=/fixture\0'
         with patch('check_kernel_env.process_identity', return_value=('proc:456', 'S')), \
                 patch('pathlib.Path.read_bytes', return_value=env):
             self.assertIsNone(owned_kernel(789, 123, '/fixture'))
@@ -60,7 +60,7 @@ class ProbeTests(unittest.TestCase):
             self.assertIsNone(owned_kernel(789, 123, '/fixture', 'proc:old'))
 
     def test_matching_kernel_owner_fixture_and_start_identity(self):
-        env = b'PYHARNESS_KERNEL_OWNER_PID=123\0PA_KERNEL_ENV_FIXTURE_ID=/fixture\0'
+        env = b'PYHARNESS_KERNEL_OWNER_PID=123\0PH_KERNEL_ENV_FIXTURE_ID=/fixture\0'
         with patch('check_kernel_env.process_identity', return_value=('proc:456', 'S')), \
                 patch('pathlib.Path.read_bytes', side_effect=[env, b'/fixture/python3\0-m\0rlm.kernel\0']):
             self.assertEqual(owned_kernel(789, 123, '/fixture', 'proc:456'), 'proc:456')

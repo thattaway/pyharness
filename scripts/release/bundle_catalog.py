@@ -57,7 +57,7 @@ BUNDLED_CATALOG_FILES = ("models.bundled.json", "mcp-services.bundled.json")
 
 # Release-gate minimums (spec §3.2/§3.9): sanity floors that catch a
 # truncated, emptied or wrong catalog file. They gate the live catalog, and
-# pyharness-catalog's own validator has no minimums, so they sit below the
+# prime-agent-catalog's own validator has no minimums, so they sit below the
 # live counts (42 transport tuples and 69 services on 2026-10-23): removing a
 # provider endpoint or a few services there must not block every build. The
 # shipped TS tool carries MIN_BUNDLED_MCP_SERVICES = 20.
@@ -66,7 +66,7 @@ MIN_MCP_SERVICES = 50
 # The offline fixture's generated service count (plus the special entries).
 FIXTURE_MCP_SERVICES = 68
 
-CATALOG_REPO = "thattaway/pyharness-catalog"
+CATALOG_REPO = "PrimeIntellect-ai/prime-agent-catalog"
 MODEL_CATALOG_PATH = "models/catalog.v1.json"
 MCP_SERVICE_CATALOG_PATH = "plugins/catalog.v2.json"
 
@@ -884,7 +884,7 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--out", dest="out_dir", default=None,
                         help="asset output directory (default: target/catalog-assets)")
     parser.add_argument("--catalog-dir", default=None,
-                        help="copy from a local pyharness-catalog checkout")
+                        help="copy from a local prime-agent-catalog checkout")
     parser.add_argument("--network", action="store_true",
                         help="fetch the live catalog repo (CI/packaging default)")
     parser.add_argument("--fixture", action="store_true",

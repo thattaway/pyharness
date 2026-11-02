@@ -61,7 +61,7 @@ SECTION_START_RE = re.compile(r"^## \[", re.M)
 SEED_HEADER = """# Changelog
 
 Release notes for pyharness. Historical TypeScript release notes are
-recorded in the [TypeScript changelog](https://github.com/thattaway/pyharness/blob/v0.9.8/packages/coding-agent/CHANGELOG.md).
+recorded in the [TypeScript changelog](https://github.com/PrimeIntellect-ai/prime-agent/blob/v0.9.8/packages/coding-agent/CHANGELOG.md).
 """
 
 

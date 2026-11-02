@@ -327,7 +327,7 @@ def stage_tree(staging: Path, args: argparse.Namespace, stamped_version: str | N
         fail(
             "missing bundled catalog assets: run "
             "`python3 scripts/release/bundle_catalog.py generate "
-            "--catalog-dir <pyharness-catalog>` (CI: --network; offline "
+            "--catalog-dir <prime-agent-catalog>` (CI: --network; offline "
             "builds: --fixture) and pass --catalog-assets <dir>"
         )
     catalog_assets = Path(args.catalog_assets)

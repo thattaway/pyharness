@@ -22,7 +22,7 @@ hard-fails without VALIDATED assets (version gates + the transport-tuple
 and service minimums — see scripts/release/bundle_catalog.py, the catalog
 spec §3.2 no-cold-start layer 2), exactly like assemble_artifacts. The
 release workflow passes the build-gnu job's assets: the live catalog at the
-one pyharness-catalog commit the run resolved. Offline runs use
+one prime-agent-catalog commit the run resolved. Offline runs use
 `bundle_catalog.py generate --fixture`.
 
 `--version` must be a BARE semver (no prerelease/continuous suffix). The

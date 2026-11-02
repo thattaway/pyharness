@@ -1,7 +1,7 @@
 # Changelog
 
 Release notes for pyharness. Historical TypeScript release notes are
-recorded in the [TypeScript changelog](https://github.com/thattaway/pyharness/blob/v0.9.8/packages/coding-agent/CHANGELOG.md).
+recorded in the [TypeScript changelog](https://github.com/PrimeIntellect-ai/prime-agent/blob/v0.9.8/packages/coding-agent/CHANGELOG.md).
 
 ## [0.10.2] - 2026-10-28
 
@@ -84,7 +84,7 @@ recorded in the [TypeScript changelog](https://github.com/thattaway/pyharness/bl
 - Client-owned sessions (`--no-session` ACP and TUI sessions) now stop 30 seconds after their client disconnects without closing them, or 30 seconds after a daemon restart if the client does not reconnect, instead of running on hidden until the daemon stops.
 - Clicking a compaction summary, a harness refinement notice, a skill invocation, or an injected prompt (heartbeat, goal, subagent status) in the transcript expands or collapses it again.
 - openai-completions streams no longer hang forever when a server keeps the response body open past the `data: [DONE]` marker (a persistent SSE channel with no content length, chunked terminator, or half-close): the stream now ends at the marker like the TypeScript SDK, so the turn runs its tool call instead of waiting silently for an EOF that never comes.
-- A `maxTokens` configured in models.json (or a per-model override) now reaches the provider unchanged instead of being silently clamped to the 32000 default output ceiling; catalog models keep the default ceiling ([#755](https://github.com/thattaway/pyharness/issues/755)).
+- A `maxTokens` configured in models.json (or a per-model override) now reaches the provider unchanged instead of being silently clamped to the 32000 default output ceiling; catalog models keep the default ceiling ([#755](https://github.com/PrimeIntellect-ai/prime-agent/issues/755)).
 - The Windows one-liner is real again: the release pipeline publishes `install.ps1` (the stable-channel render, the channel's own base + fallback to beta when stable carries no Windows build) on every beta cut instead of waiting for a first Rust stable that has not been cut, and the README's PowerShell command points at the copy that actually serves (the merged repo file, the same route the Windows battery installs from) instead of the domain prefix that 404s.
 - Session resume no longer wedges when the saved state held a `bash()` handle: snapshots skip live process handles, whose restore reopened a stale fd number and killed the restored kernel's event loop. Restoring also refuses to reopen any pickled raw fd number (legacy snapshots, user pipe objects), failing just that saved name instead of the whole kernel. A kernel that drops a protocol frame now logs it to kernel-stderr.log instead of failing silently. A timed-out request whose code was still being sent to a stalled kernel no longer leaves the kernel permanently busy; the kernel restarts instead.
 - Internal: daemon log, panic, and test assertion messages no longer print session ids or fixture API keys (CodeQL `rust/cleartext-logging` cleanup).

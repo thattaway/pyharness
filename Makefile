@@ -78,7 +78,7 @@ RUNTIME_FLAG = $(if $(RUNTIME_DIR),--runtime-dir $(RUNTIME_DIR),)
 
 # Bundled catalog assets (catalog spec §3.2 layer 2): generated at build
 # time, never committed. Release and continuous CI ship the live catalog
-# (--network) at one pyharness-catalog commit per run (`bundle_catalog.py
+# (--network) at one prime-agent-catalog commit per run (`bundle_catalog.py
 # resolve-ref`). The local dry-runs default to the offline fixture snapshot
 # (it passes the full packer gates); CATALOG_ASSETS_MODE=network switches
 # them to the live fetch of the catalog's main.

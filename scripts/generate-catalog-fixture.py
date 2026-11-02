@@ -2,7 +2,7 @@
 """Refresh the catalog parity fixture (tests/fixtures/catalog.v1.json).
 
 The fixture is a byte-faithful snapshot of the real catalog repo
-(thattaway/pyharness-catalog, models/catalog.v1.json). The
+(thattaway/prime-agent-catalog, models/catalog.v1.json). The
 published payload already IS the catalog aggregate `createModelCatalog`
 builds from it (packages/ai/src/model-catalog.ts semantics): schemaVersion
 1, headers stripped, prime-inference excluded (it is fetched live),
@@ -13,12 +13,12 @@ The default mode fetches the live catalog with the release bundler's
 guards (public repo; optional GITHUB_TOKEN / PRIME_CATALOG_REPO_TOKEN
 Bearer; aborts after 5 s, refuses redirects, caps responses at
 MAX_REMOTE_CATALOG_BYTES — the same fetch scripts/release/bundle_catalog.py
-uses); `--catalog-dir <pyharness-catalog>` reads a local checkout
+uses); `--catalog-dir <prime-agent-catalog>` reads a local checkout
 instead, so the refresh also works offline.
 
 Usage:
   python3 scripts/generate-catalog-fixture.py
-  python3 scripts/generate-catalog-fixture.py --catalog-dir <pyharness-catalog>
+  python3 scripts/generate-catalog-fixture.py --catalog-dir <prime-agent-catalog>
 """
 
 from __future__ import annotations
@@ -59,7 +59,7 @@ def main() -> None:
         "--catalog-dir",
         type=Path,
         default=None,
-        help="read models/catalog.v1.json from a local pyharness-catalog "
+        help="read models/catalog.v1.json from a local prime-agent-catalog "
         "checkout instead of fetching the live catalog",
     )
     args = parser.parse_args()

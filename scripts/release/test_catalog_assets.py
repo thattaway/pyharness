@@ -410,7 +410,7 @@ class CatalogDirMode(unittest.TestCase):
         bodies = bundle_catalog.fixture_catalog_bodies()
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
-            checkout = tmp / "pyharness-catalog"
+            checkout = tmp / "prime-agent-catalog"
             (checkout / "models").mkdir(parents=True)
             (checkout / "plugins").mkdir()
             (checkout / "models" / "catalog.v1.json").write_text(

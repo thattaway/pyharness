@@ -210,7 +210,7 @@ def resolve_catalog_assets(args):
         raise SystemExit(
             "error: missing bundled catalog assets: run "
             "`python3 scripts/release/bundle_catalog.py generate "
-            "--catalog-dir <pyharness-catalog>` (CI: --network; offline "
+            "--catalog-dir <prime-agent-catalog>` (CI: --network; offline "
             "builds: --fixture) and pass --catalog-assets <dir>"
         )
     validate_bundled_catalog_dir(args.catalog_assets)

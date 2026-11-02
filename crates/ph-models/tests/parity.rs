@@ -1,5 +1,5 @@
 //! Parity verifier: parse the real catalog payload (a byte-faithful
-//! snapshot of `pyharness-catalog` `models/catalog.v1.json`; refresh
+//! snapshot of `prime-agent-catalog` `models/catalog.v1.json`; refresh
 //! with `scripts/generate-catalog-fixture.py`) against the strict
 //! schema and transport pinning.
 

@@ -1,4 +1,11 @@
-# pyharness
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo/pyharness-mark-dark.svg">
+    <img alt="pyharness logo: a snake about to catch its own tail" src="assets/logo/pyharness-mark-light.svg" width="160">
+  </picture>
+</p>
+
+<h1 align="center">pyharness</h1>
 
 pyharness is a coding and research agent for general and long-running work,
 built around two ideas:

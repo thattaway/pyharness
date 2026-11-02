@@ -8,15 +8,17 @@ use serde_json::Value;
 
 use crate::theme::{Theme, ThemeBg, ThemeColor};
 
-/// The compact 7-row brand mark: a block-letter "py".
+/// The compact 7-row brand mark: the ouroboros (a snake about to catch its
+/// own tail), drawn in braille dots. Generated from the vector logo in
+/// `assets/logo/`.
 pub const BRAND_LOGO: &str = concat!(
-    "\u{2597}\u{2584}\u{2584}\u{2584}\u{2596}  \u{2597}\u{2596}   \u{2597}\u{2596}\n",
-    "\u{2590}\u{258c} \u{2590}\u{258c}  \u{259d}\u{259c}\u{2596} \u{2597}\u{259b}\u{2598}\n",
-    "\u{2590}\u{2599}\u{2584}\u{259f}\u{258c}   \u{259d}\u{259c}\u{2584}\u{259b}\u{2598}\n",
-    "\u{2590}\u{259b}\u{2580}\u{2580}\u{2598}    \u{2590}\u{258c}\n",
-    "\u{2590}\u{258c}       \u{2590}\u{258c}\n",
-    "\u{2590}\u{258c}      \u{2597}\u{259b}\u{2598}\n",
-    "\u{259d}\u{2598}     \u{259d}\u{2580}\u{2598}",
+    "   \u{2880}\u{28e0}\u{28f4}\u{28d6}\u{28e6}\u{2844}\n",
+    "  \u{28f4}\u{28ff}\u{28ff}\u{283f}\u{283f}\u{281b} \u{2810}\u{2884}\n",
+    " \u{28fc}\u{28ff}\u{285f}\u{2801}      \u{28b7}\u{2840}\n",
+    " \u{28ff}\u{28ff}        \u{28b8}\u{2847}\n",
+    " \u{28b9}\u{28ff}\u{28c6}      \u{2880}\u{28fe}\u{2803}\n",
+    "  \u{2819}\u{28bf}\u{28f7}\u{28e6}\u{28e4}\u{28e4}\u{28e4}\u{28f6}\u{281f}\u{2801}\n",
+    "    \u{2808}\u{2809}\u{281b}\u{280b}\u{2809}\u{2801}",
 );
 
 /// Truncate a plain string to a visible width (cut on grapheme

@@ -498,7 +498,7 @@ fn the_first_run_telemetry_notice_renders_as_a_row() {
         "the disclosure row rendered:\n{all}"
     );
     assert!(
-        all.contains("Disable this with /telemetry off"),
+        all.contains("Turn this off with /telemetry off"),
         "the interactive switch names itself:\n{all}"
     );
     assert!(

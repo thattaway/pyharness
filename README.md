@@ -22,15 +22,18 @@ Prime Inference is still available as one of the model providers.
 
 ## Install
 
-Build from source with a recent stable Rust toolchain and
-[uv](https://docs.astral.sh/uv/) on `PATH` (it provisions the Python kernel):
+Build from source (see the [install and setup guide](docs/install.md) for
+requirements, connecting a model, updating and troubleshooting):
 
 ```bash
 git clone https://github.com/thattaway/pyharness
 cd pyharness
 cargo build --release -p ph-cli --bin pyharness
-cp target/release/pyharness ~/.local/bin/
+ln -sf "$PWD/target/release/pyharness" ~/.local/bin/pyharness
 ```
+
+Keep the clone in place: the binary loads its Python runtime and built-in
+skills from it.
 
 ## Why pyharness
 

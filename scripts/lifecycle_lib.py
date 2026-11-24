@@ -42,6 +42,12 @@ def stop(process):
             process.wait(timeout=5)
 
 
+def default_socket_dir(tmp, agent_dir):
+    """The product's default socket dir: keyed by user id and the agent dir."""
+    key = hashlib.sha256(str(agent_dir).encode()).hexdigest()[:8]
+    return Path(tmp) / f'pyharness-{os.getuid()}-{key}'
+
+
 def env_for(root):
     env = {key: os.environ[key] for key in ("PATH", "LANG", "LC_ALL", "TZ")
            if key in os.environ}

@@ -729,13 +729,19 @@ fn force_shutdown_from_an_env_pinned_root_stops_only_that_daemon_tree() {
     let fixture_a = tempfile::tempdir().expect("fixture A");
     let fixture_b = tempfile::tempdir().expect("fixture B");
     let fixture_c = tempfile::tempdir().expect("fixture C");
+    // The product socket dir is keyed by user and agent dir.
+    let agent_a = fixture_a.path().join("agent");
+    let agent_key = {
+        use sha2::Digest as _;
+        let digest = sha2::Sha256::digest(agent_a.to_string_lossy().as_bytes());
+        digest.iter().map(|b| format!("{b:02x}")).collect::<String>()[..8].to_string()
+    };
     // SAFETY: getuid is a pure identity query.
     let socket_dir = shared_tmp
         .path()
-        .join(format!("pyharness-{}", unsafe { libc::getuid() }));
+        .join(format!("pyharness-{}-{agent_key}", unsafe { libc::getuid() }));
 
     let socket_a = socket_dir.join("daemon.sock"); // the product default
-    let agent_a = fixture_a.path().join("agent");
     let mut daemon_a = spawn_daemon(&socket_a, &agent_a, shared_tmp.path());
     let _session_a = create_scripted_session(&socket_a, &agent_a);
     let worker_a = tracked_worker_pid(&agent_a, &socket_a);

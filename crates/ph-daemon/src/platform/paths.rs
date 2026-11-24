@@ -1,24 +1,39 @@
 //! Per-OS daemon endpoint naming: Unix socket files under
-//! `<tmpdir>/pyharness-<uid>/`; Windows named pipes in the `\\.\\pipe\\`
+//! `<tmpdir>/pyharness-<uid>-<agent dir key>/`; Windows named pipes in the `\\.\\pipe\\`
 //! namespace (fixed daemon pipe, hashed worker pipes) - the TS product's
 //! exact split.
 use std::path::{Path, PathBuf};
 
 use crate::paths::hash_key;
 
-/// Default directory holding daemon socket files (Unix).
+/// Default directory holding daemon socket files (Unix). It is keyed by the
+/// agent state directory as well as the user, so each config folder gets its
+/// own daemon: two `HOME`s or `PYHARNESS_CODING_AGENT_DIR`s never share one.
 #[cfg(unix)]
 pub fn socket_dir() -> PathBuf {
     let uid = ph_core::platform::process::current_user_id();
     let tmp = std::env::var_os("TMPDIR").map_or_else(|| PathBuf::from("/tmp"), PathBuf::from);
-    socket_dir_for(&tmp, uid)
+    socket_dir_for(&tmp, uid, ph_types::platform::agent_dir().as_deref())
+}
+
+/// The socket dir name: `pyharness-<uid>`, plus a short hash of the agent dir
+/// when one resolves.
+#[cfg(unix)]
+fn socket_dir_name(uid: u32, agent_dir: Option<&Path>) -> String {
+    match agent_dir {
+        Some(agent_dir) => format!(
+            "pyharness-{uid}-{}",
+            hash_key(&agent_dir.to_string_lossy(), 8)
+        ),
+        None => format!("pyharness-{uid}"),
+    }
 }
 
 /// Reserve the longest generated endpoint before selecting a directory. Linux
 /// can re-anchor deep paths through /proc; other Unix platforms need a short path.
 #[cfg(unix)]
-fn socket_dir_for(tmp: &Path, uid: u32) -> PathBuf {
-    let name = format!("pyharness-{uid}");
+fn socket_dir_for(tmp: &Path, uid: u32, agent_dir: Option<&Path>) -> PathBuf {
+    let name = socket_dir_name(uid, agent_dir);
     let dir = tmp.join(&name);
     #[cfg(not(target_os = "linux"))]
     if std::os::unix::net::SocketAddr::from_pathname(
@@ -97,8 +112,28 @@ mod tests {
         let tmp = std::env::var_os("TMPDIR").map_or_else(|| PathBuf::from("/tmp"), PathBuf::from);
         assert_eq!(
             socket_dir(),
-            socket_dir_for(&tmp, uid.trim().parse().unwrap())
+            socket_dir_for(
+                &tmp,
+                uid.trim().parse().unwrap(),
+                ph_types::platform::agent_dir().as_deref()
+            )
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn each_agent_dir_gets_its_own_socket_dir() {
+        let tmp = Path::new("/tmp");
+        let a = socket_dir_for(tmp, 1000, Some(Path::new("/home/a/.pyharness")));
+        let b = socket_dir_for(tmp, 1000, Some(Path::new("/home/b/.pyharness")));
+        assert_ne!(a, b);
+        assert_eq!(a, socket_dir_for(tmp, 1000, Some(Path::new("/home/a/.pyharness"))));
+        assert!(a
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("pyharness-1000-"));
+        assert_eq!(socket_dir_for(tmp, 1000, None), tmp.join("pyharness-1000"));
     }
 
     #[cfg(all(unix, not(target_os = "linux")))]
@@ -108,7 +143,7 @@ mod tests {
 
         for length in [20, 65, 120] {
             let tmp = PathBuf::from(format!("/{}", "d".repeat(length - 1)));
-            let dir = socket_dir_for(&tmp, 501);
+            let dir = socket_dir_for(&tmp, 501, None);
             let worker = dir.join("worker-000000000000-000000000000.sock");
             assert!(SocketAddr::from_pathname(&worker).is_ok());
             if length >= 65 {
@@ -123,7 +158,7 @@ mod tests {
     #[test]
     fn short_tmpdir_keeps_the_original_socket_directory() {
         assert_eq!(
-            socket_dir_for(Path::new("/tmp"), 501),
+            socket_dir_for(Path::new("/tmp"), 501, None),
             Path::new("/tmp/pyharness-501")
         );
     }

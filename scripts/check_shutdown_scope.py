@@ -11,7 +11,7 @@ import threading
 import time
 
 from check_agent_bounce import Client, Provider, Handler, LIMIT
-from lifecycle_lib import digest, env_for, stop
+from lifecycle_lib import default_socket_dir, digest, env_for, stop
 
 
 class CompletionHandler(Handler):
@@ -176,7 +176,7 @@ def invoke(binary, args, tree):
 def run_case(binary, root, mode, observed):
     shared_tmp = root / 'shared-tmp'
     shared_tmp.mkdir(parents=True)
-    default_socket = shared_tmp / f'pyharness-{os.getuid()}' / 'daemon.sock'
+    default_socket = default_socket_dir(shared_tmp, root / 'own' / 'agent') / 'daemon.sock'
     default_socket.parent.mkdir()
     pins = root / 'pins'
     pins.mkdir()

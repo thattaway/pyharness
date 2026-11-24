@@ -16,7 +16,7 @@ import tempfile
 import threading
 import time
 
-from lifecycle_lib import digest, env_for, stop
+from lifecycle_lib import default_socket_dir, digest, env_for, stop
 
 
 def launch_daemon(command, expected, root, env):
@@ -85,7 +85,7 @@ def main():
             owned.mkdir()
             env = env_for(owned)
             tmp = owned / 'tmp'
-            legacy = tmp / f'pyharness-{os.getuid()}/daemon.sock'
+            legacy = default_socket_dir(tmp, owned / 'agent') / 'daemon.sock'
             command = install_launcher(binary, owned, env)
             marker = owned / 'prefix/share/.pyharness-npm-bridge/legacy-daemon-socket'
             marker.parent.mkdir()

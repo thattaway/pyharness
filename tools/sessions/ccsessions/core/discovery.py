@@ -9,6 +9,7 @@ from .live import get_live_session_ids
 from .manage import ARCHIVE_SUBDIR, PROJECTS_ARCHIVE_DIR
 from .models import Project, Session, TokenStats
 from .parser import extract_cwd, get_token_stats
+from .pyharness import discover_pyharness_projects
 
 DEFAULT_PROJECTS_DIR = Path.home() / ".claude" / "projects"
 
@@ -188,3 +189,16 @@ def discover_projects(
         archived.sort(key=_latest_modified, reverse=True)
     # archived projects always come after active ones
     return projects + archived
+
+
+def discover_all(cache: TokenCache | None = None) -> list[Project]:
+    """Claude Code and pyharness projects together, newest first.
+
+    Archived (Claude Code) projects still come after every active one.
+    """
+    claude = discover_projects(cache=cache)
+    active = [p for p in claude if not p.is_archived]
+    archived = [p for p in claude if p.is_archived]
+    active += discover_pyharness_projects(cache=cache)
+    active.sort(key=_latest_modified, reverse=True)
+    return active + archived

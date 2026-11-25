@@ -23,9 +23,10 @@ from textual.widgets import Button, DataTable, Footer, Header, Input, Static
 
 from ..core.aliases import ProjectAliases
 from ..core.cache import TokenCache
-from ..core.discovery import discover_projects
+from ..core.discovery import discover_all
 from ..core.export import MARKDOWN, RAW, ExportError, export_session
 from ..core.live import running_now
+from ..core import pyharness
 from ..core.manage import (
     ManageError,
     archive_project,
@@ -761,7 +762,7 @@ class CCSessionsApp(App):
     def _scan(self) -> None:
         """Disk scan off the UI thread — the interface stays responsive."""
         started = time.monotonic()
-        projects = discover_projects(cache=self._cache)
+        projects = discover_all(cache=self._cache)
         self._aliases.apply(projects)
         self._cache.save()
         elapsed = time.monotonic() - started
@@ -881,6 +882,8 @@ class CCSessionsApp(App):
                 live = Text(" ")
             name_style = f"{pal['muted']} italic" if all_archived else f"bold {pal['primary']}"
             name = Text(p.display_name, style=name_style)
+            if p.source == pyharness.SOURCE:
+                name.append(" · pyharness", style=pal["muted"])
             sess_label = (
                 f"{len(active)}"
                 if not archived
@@ -1101,7 +1104,9 @@ class CCSessionsApp(App):
             f"  [{c_primary}]cache read:[/]  [{c_text}]{t.cache_read:>12,}[/]\n"
             f"  [{c_accent}]cache write:[/] [{c_text}]{t.cache_write:>12,}[/]\n"
             f"  [bold]Σ total:[/]     [bold {c_number}]{t.total:>12,}[/]\n"
-            f"{resume_line}"
+            + (f"  [{c_muted}]cost:[/]        [{c_text}]{'$' + format(t.cost, ',.4f'):>12}[/]\n"
+               if t.cost else "")
+            + f"{resume_line}"
             f"{watch_line}"
             f"\n"
             f"[bold]First prompt[/bold]\n"
@@ -1250,20 +1255,40 @@ class CCSessionsApp(App):
             self._set_status(f"Project folder no longer exists: {s.project_path}")
             self.bell()
             return
-        self.exit(ResumeRequest(session_id=s.session_id, cwd=s.project_path))
+        self.exit(self._resume_request(s))
 
     def action_copy_resume(self) -> None:
         s = self._selected_session()
         if s is None:
             return
-        cmd = build_resume_command(ResumeRequest(session_id=s.session_id, cwd=s.project_path))
+        cmd = build_resume_command(self._resume_request(s))
         self.copy_to_clipboard(cmd)
         self._set_status(f"Copied to clipboard: {cmd}")
 
     @staticmethod
+    def _resume_request(s: Session) -> ResumeRequest:
+        return ResumeRequest(
+            session_id=s.session_id,
+            cwd=s.project_path,
+            source=s.source,
+            session_file=str(s.jsonl_path),
+        )
+
+    @staticmethod
     def _running_now(sessions: "list[Session]") -> bool:
         """Re-check liveness at the moment of acting: the last scan can be stale."""
-        return bool(running_now([s.session_id for s in sessions]))
+        claude = [s.session_id for s in sessions if s.source != pyharness.SOURCE]
+        if claude and running_now(claude):
+            return True
+        ph = [s for s in sessions if s.source == pyharness.SOURCE]
+        if not ph:
+            return False
+        running = pyharness.running_session_files()
+        return any(str(s.jsonl_path.resolve()) in running for s in ph)
+
+    def _not_for_pyharness(self, what: str) -> None:
+        self._set_status(f"{what} is only available for Claude Code sessions")
+        self.bell()
 
     def _focus_on_projects(self) -> bool:
         focused = self.focused
@@ -1431,6 +1456,9 @@ class CCSessionsApp(App):
             p = self._current_project()
             if p is None:
                 return
+            if p.source == pyharness.SOURCE:
+                self._not_for_pyharness("Archiving")
+                return
             if p.has_live or self._running_now(p.sessions):
                 self._set_status("Project has a live session — not archiving")
                 self.bell()
@@ -1446,6 +1474,9 @@ class CCSessionsApp(App):
             return
         s = self._current_session()
         if s is None:
+            return
+        if s.source == pyharness.SOURCE:
+            self._not_for_pyharness("Archiving")
             return
         if s.is_missing:
             self._set_status("File not on this machine — nothing to archive")
@@ -1506,12 +1537,18 @@ class CCSessionsApp(App):
                 self._set_status("Project has a live session — not deleting")
                 self.bell()
                 return
-            msg = (
-                f"PERMANENTLY delete project “{p.display_name}”\n"
-                f"({len(p.sessions)} sessions, {fmt_tokens(p.total_tokens)} tokens)?\n\n"
-                f"If ~/.claude is synced between machines,\n"
-                f"the deletion will propagate to all of them."
-            )
+            if p.source == pyharness.SOURCE:
+                msg = (
+                    f"PERMANENTLY delete all {len(p.sessions)} pyharness sessions in\n"
+                    f"“{p.display_name}” ({fmt_tokens(p.total_tokens)} tokens)?"
+                )
+            else:
+                msg = (
+                    f"PERMANENTLY delete project “{p.display_name}”\n"
+                    f"({len(p.sessions)} sessions, {fmt_tokens(p.total_tokens)} tokens)?\n\n"
+                    f"If ~/.claude is synced between machines,\n"
+                    f"the deletion will propagate to all of them."
+                )
 
             def on_project_confirm(ok: bool | None) -> None:
                 if not ok:
@@ -1521,8 +1558,12 @@ class CCSessionsApp(App):
                     self.bell()
                     return
                 try:
-                    delete_project(p)
-                except ManageError as e:
+                    if p.source == pyharness.SOURCE:
+                        for session in p.sessions:
+                            pyharness.delete_session(session)
+                    else:
+                        delete_project(p)
+                except (ManageError, pyharness.PyharnessError) as e:
                     self._set_status(f"Delete failed: {e}")
                     self.bell()
                     return
@@ -1544,11 +1585,14 @@ class CCSessionsApp(App):
             if s.is_missing
             else "the transcript and the index entry"
         )
-        msg = (
-            f"Delete session “{s.display_title[:50]}”?\n"
-            f"This will remove {what}.\n\n"
-            f"If ~/.claude is synced between machines, the change propagates."
-        )
+        if s.source == pyharness.SOURCE:
+            msg = f"Delete pyharness session “{s.display_title[:50]}”?"
+        else:
+            msg = (
+                f"Delete session “{s.display_title[:50]}”?\n"
+                f"This will remove {what}.\n\n"
+                f"If ~/.claude is synced between machines, the change propagates."
+            )
 
         def on_session_confirm(ok: bool | None) -> None:
             if not ok:
@@ -1558,8 +1602,11 @@ class CCSessionsApp(App):
                 self.bell()
                 return
             try:
-                delete_session(s)
-            except ManageError as e:
+                if s.source == pyharness.SOURCE:
+                    pyharness.delete_session(s)
+                else:
+                    delete_session(s)
+            except (ManageError, pyharness.PyharnessError) as e:
                 self._set_status(f"Delete failed: {e}")
                 self.bell()
                 return

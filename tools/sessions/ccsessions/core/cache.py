@@ -10,7 +10,8 @@ DEFAULT_CACHE_PATH = Path.home() / ".cache" / "ccsessions" / "token-stats.json"
 
 # Bumped whenever the way stats are computed changes, so entries written by an
 # older version are recomputed instead of shown. 2: replies counted once.
-STATS_VERSION = 2
+# 3: pyharness transcripts and cost.
+STATS_VERSION = 3
 
 
 class TokenCache:
@@ -60,6 +61,7 @@ class TokenCache:
                 custom_title=str(entry["custom_title"]),
                 ai_title=str(entry["ai_title"]),
                 first_prompt=str(entry["first_prompt"]),
+                cost=float(entry["cost"]),
             )
         except (KeyError, TypeError, ValueError):
             return None
@@ -77,6 +79,7 @@ class TokenCache:
             "custom_title": stats.custom_title,
             "ai_title": stats.ai_title,
             "first_prompt": stats.first_prompt,
+            "cost": stats.cost,
         }
         self._dirty = True
 

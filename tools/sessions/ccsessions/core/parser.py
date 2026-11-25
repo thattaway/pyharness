@@ -63,6 +63,31 @@ def _is_tool_result(content: object) -> bool:
     )
 
 
+def _add_pyharness_message(stats: TokenStats, msg: dict) -> None:
+    """Fold one pyharness `message` entry into the stats.
+
+    pyharness writes each message on a single line, so there is nothing to
+    de-duplicate; usage keys are camelCase and the cost is recorded too.
+    """
+    role = msg.get("role")
+    if role == "user":
+        stats.messages += 1
+        if not stats.first_prompt:
+            stats.first_prompt = _prompt_text(msg.get("content"))
+    elif role == "assistant":
+        stats.messages += 1
+        usage = msg.get("usage")
+        if isinstance(usage, dict):
+            stats.input += _count(usage.get("input"))
+            stats.output += _count(usage.get("output"))
+            stats.cache_read += _count(usage.get("cacheRead"))
+            stats.cache_write += _count(usage.get("cacheWrite"))
+            cost = usage.get("cost")
+            total = cost.get("total") if isinstance(cost, dict) else None
+            if isinstance(total, (int, float)) and not isinstance(total, bool):
+                stats.cost += float(total)
+
+
 def compute_token_stats(jsonl_path: Path) -> TokenStats:
     """Token usage, message count and titles for one transcript.
 
@@ -97,8 +122,16 @@ def compute_token_stats(jsonl_path: Path) -> TokenStats:
                     if isinstance(title, str):
                         stats.ai_title = title.strip()
                     continue
+                if obj.get("type") == "session_info":  # pyharness: a name set with /name
+                    name = obj.get("name")
+                    if isinstance(name, str) and name.strip():
+                        stats.custom_title = name.strip()
+                    continue
                 msg = obj.get("message")
                 if not isinstance(msg, dict) or obj.get("isMeta"):
+                    continue
+                if obj.get("type") == "message":  # pyharness: one line per message
+                    _add_pyharness_message(stats, msg)
                     continue
                 if obj.get("type") == "user":
                     content = msg.get("content")
@@ -145,7 +178,7 @@ def get_token_stats(jsonl_path: Path, cache: "TokenCache | None" = None) -> Toke
 def _summarize_tool_use(name: str, tool_input: object) -> str:
     if not isinstance(tool_input, dict):
         return name
-    for key in ("command", "description", "file_path", "pattern", "prompt", "query", "url", "skill"):
+    for key in ("command", "description", "file_path", "path", "pattern", "prompt", "query", "url", "skill", "code"):
         val = tool_input.get(key)
         if isinstance(val, str) and val.strip():
             first = val.strip().splitlines()[0]
@@ -190,6 +223,54 @@ def _parse_ts(value: object) -> "datetime | None":
         return None
 
 
+def _text_blocks(content: object) -> str:
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        return "\n".join(
+            b["text"].strip()
+            for b in content
+            if isinstance(b, dict)
+            and b.get("type") == "text"
+            and isinstance(b.get("text"), str)
+            and b["text"].strip()
+        )
+    return ""
+
+
+def _pyharness_entries(obj: dict) -> list[Entry]:
+    """Entries from one pyharness `message` line.
+
+    Roles: `user`, `assistant` (text, thinking and `toolCall` blocks),
+    `toolResult` (skipped, as Claude Code's tool results are) and
+    `bashExecution` (a `!` command, shown like a slash command). Summaries and
+    other bookkeeping roles are not part of the conversation shown here.
+    """
+    msg = obj.get("message")
+    if not isinstance(msg, dict):
+        return []
+    ts = _parse_ts(obj.get("timestamp"))
+    role = msg.get("role")
+    if role == "user":
+        text = _text_blocks(msg.get("content"))
+        return [Entry("user", text, ts)] if text else []
+    if role == "bashExecution":
+        command = msg.get("command")
+        return [Entry("command", f"! {command}", ts)] if isinstance(command, str) else []
+    if role != "assistant" or not isinstance(msg.get("content"), list):
+        return []
+    entries: list[Entry] = []
+    for b in msg["content"]:
+        if not isinstance(b, dict):
+            continue
+        if b.get("type") == "text" and isinstance(b.get("text"), str) and b["text"].strip():
+            entries.append(Entry("assistant", b["text"].strip(), ts))
+        elif b.get("type") == "toolCall":
+            name = str(b.get("name") or "?")
+            entries.append(Entry("tool", _summarize_tool_use(name, b.get("arguments")), ts))
+    return entries
+
+
 def entries_from_line(line: str) -> list[Entry]:
     """Parse one JSONL record into zero or more entries."""
     line = line.strip()
@@ -201,6 +282,8 @@ def entries_from_line(line: str) -> list[Entry]:
         return []
     if not isinstance(obj, dict) or obj.get("isMeta"):
         return []
+    if obj.get("type") == "message":
+        return _pyharness_entries(obj)
     typ = obj.get("type")
     msg = obj.get("message")
     if typ not in ("user", "assistant") or not isinstance(msg, dict):

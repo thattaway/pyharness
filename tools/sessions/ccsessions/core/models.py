@@ -29,6 +29,7 @@ class TokenStats:
     custom_title: str = ""  # last name set with /rename, read from the JSONL
     ai_title: str = ""  # last title Claude Code generated, read from the JSONL
     first_prompt: str = ""  # first thing the user typed, read from the JSONL
+    cost: float = 0.0  # USD, when the transcript records it (pyharness does)
 
     @property
     def total(self) -> int:
@@ -40,6 +41,7 @@ class TokenStats:
         self.cache_read += other.cache_read
         self.cache_write += other.cache_write
         self.messages += other.messages
+        self.cost += other.cost
         return self
 
 
@@ -59,6 +61,7 @@ class Session:
     is_archived: bool = False  # .jsonl moved into the archived/ subdirectory
     is_missing: bool = False  # index entry exists but the file does not (e.g. another machine)
     tokens: TokenStats = field(default_factory=TokenStats)
+    source: str = "claude"  # which agent wrote it: "claude" (Claude Code) or "pyharness"
 
     @property
     def display_title(self) -> str:
@@ -72,6 +75,7 @@ class Project:
     sessions: list[Session] = field(default_factory=list)
     is_archived: bool = False  # directory lives in ~/.claude/projects-archive/
     alias: str = ""  # user-defined display name (see core.aliases)
+    source: str = "claude"  # "claude" (Claude Code) or "pyharness"
 
     @property
     def worktree(self) -> str:

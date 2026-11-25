@@ -39,7 +39,7 @@ def _fake_projects() -> list[Project]:
 
 async def _exercise_filters() -> None:
     app = CCSessionsApp()
-    with patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()):
+    with patch.object(appmod, "discover_all", lambda **_kw: _fake_projects()):
         async with app.run_test(size=(120, 40)) as pilot:
             await app.workers.wait_for_complete()
             await pilot.pause()
@@ -100,7 +100,7 @@ async def _exercise_export(tmp_path: Path) -> None:
     projects[0].sessions[0].jsonl_path = transcript
 
     app = CCSessionsApp()
-    with patch.object(appmod, "discover_projects", lambda **_kw: projects):
+    with patch.object(appmod, "discover_all", lambda **_kw: projects):
         async with app.run_test(size=(120, 40)) as pilot:
             await app.workers.wait_for_complete()
             await pilot.pause()
@@ -142,7 +142,7 @@ async def _exercise_refresh_keeps_selection() -> None:
         return projects
 
     app = CCSessionsApp()
-    with patch.object(appmod, "discover_projects", build):
+    with patch.object(appmod, "discover_all", build):
         async with app.run_test(size=(120, 40)) as pilot:
             await app.workers.wait_for_complete()
             await pilot.pause()
@@ -182,7 +182,7 @@ async def _exercise_watch(tmp_path: Path) -> None:
     session.is_live = True
 
     app = CCSessionsApp()
-    with patch.object(appmod, "discover_projects", lambda **_kw: projects):
+    with patch.object(appmod, "discover_all", lambda **_kw: projects):
         async with app.run_test(size=(120, 40)) as pilot:
             await app.workers.wait_for_complete()
             await pilot.pause()
@@ -222,7 +222,7 @@ async def _exercise_refresh_keeps_scroll() -> None:
         for i in range(60)
     ]
     app = CCSessionsApp()
-    with patch.object(appmod, "discover_projects", lambda **_kw: projects):
+    with patch.object(appmod, "discover_all", lambda **_kw: projects):
         async with app.run_test(size=(120, 40)) as pilot:
             await app.workers.wait_for_complete()
             await pilot.pause()
@@ -251,7 +251,7 @@ async def _exercise_refresh_keeps_project_sharing_path() -> None:
     projects = _fake_projects()
     projects[1].project_path = projects[0].project_path
     app = CCSessionsApp()
-    with patch.object(appmod, "discover_projects", lambda **_kw: projects):
+    with patch.object(appmod, "discover_all", lambda **_kw: projects):
         async with app.run_test(size=(120, 40)) as pilot:
             await app.workers.wait_for_complete()
             await pilot.pause()
@@ -275,7 +275,7 @@ async def _exercise_square_brackets_in_titles(tmp_path: Path) -> None:
     projects = _fake_projects()
     projects[0].sessions[0].summary = "[urgent] refactor the parser"
     app = CCSessionsApp()
-    with patch.object(appmod, "discover_projects", lambda **_kw: projects):
+    with patch.object(appmod, "discover_all", lambda **_kw: projects):
         async with app.run_test(size=(120, 40)) as pilot:
             await app.workers.wait_for_complete()
             await pilot.pause()
@@ -301,7 +301,7 @@ def test_square_brackets_in_titles_survive(tmp_path):
 
 async def _exercise_footer_and_aliases() -> None:
     app = CCSessionsApp()
-    with patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()):
+    with patch.object(appmod, "discover_all", lambda **_kw: _fake_projects()):
         async with app.run_test(size=(160, 40)) as pilot:
             await app.workers.wait_for_complete()
             await pilot.pause()
@@ -332,7 +332,7 @@ def test_counts_keep_their_yellow_when_the_theme_reddens_warnings():
 
 async def _exercise_light_theme_palette() -> None:
     app = CCSessionsApp()
-    with patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()):
+    with patch.object(appmod, "discover_all", lambda **_kw: _fake_projects()):
         async with app.run_test(size=(120, 40)) as pilot:
             await app.workers.wait_for_complete()
             for theme, warning in (("ansi-light", "bright_red"), ("ansi-dark", "yellow")):
@@ -350,7 +350,7 @@ def test_counts_stay_yellow_across_ansi_themes():
 async def _exercise_nord_light() -> None:
     """Textual ships Nord dark only; the light one is ours and must resolve."""
     app = CCSessionsApp()
-    with patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()):
+    with patch.object(appmod, "discover_all", lambda **_kw: _fake_projects()):
         async with app.run_test(size=(120, 40)) as pilot:
             await app.workers.wait_for_complete()
             app.theme = "nord-light"
@@ -372,7 +372,7 @@ def test_nord_light_is_available_and_light():
 async def _exercise_light_panes_share_one_background() -> None:
     """Four panes, one sheet: no pane darker for holding focus or for being a table."""
     app = CCSessionsApp()
-    with patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()):
+    with patch.object(appmod, "discover_all", lambda **_kw: _fake_projects()):
         async with app.run_test(size=(120, 40)) as pilot:
             await app.workers.wait_for_complete()
             app.theme = "nord-light"
@@ -396,7 +396,7 @@ def test_light_panes_share_one_background():
 
 async def _exercise_focused_pane_border() -> None:
     with (
-        patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()),
+        patch.object(appmod, "discover_all", lambda **_kw: _fake_projects()),
         patch.object(appmod, "load_settings", lambda: {}),
         patch.object(appmod, "save_settings", lambda _s: None),
     ):

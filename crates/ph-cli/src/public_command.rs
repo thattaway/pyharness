@@ -152,6 +152,15 @@ pub fn handle_public_command(args: &[String]) -> PublicCommandResult {
             exit_code: None,
         },
         "list" => run_internal_agent_command("list", &rest),
+        "sessions" if rest.iter().any(|arg| arg == "--ui") => {
+            if rest.len() != 1 {
+                return fail(
+                    format!("--ui takes no other options: {APP_NAME} sessions --ui"),
+                    None,
+                );
+            }
+            handled_with_exit(crate::sessions_ui::run_sessions_ui())
+        }
         "sessions" => run_internal_agent_command("sessions", &rest),
         "attach" => run_attach(&rest),
         "stop" => {
@@ -177,6 +186,9 @@ pub fn handle_public_command(args: &[String]) -> PublicCommandResult {
         "mcp" => run_mcp(&rest),
         "update" => run_update(&rest),
         "model" => rewrite_nested_command("model", "list", "--list-models", &rest),
+        "session" if rest.first().map(String::as_str) == Some("delete") => {
+            handled_with_exit(crate::session_delete::run_session_delete(&rest[1..]))
+        }
         "session" => rewrite_nested_command("session", "export", "--export", &rest),
         "prompt" => handled_with_exit(crate::prompt_command::run_prompt_command(&rest)),
         "factory" => handled_with_exit(crate::factory_command::run_factory_command(&rest)),

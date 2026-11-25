@@ -1,10 +1,11 @@
 [project]
-name = "ccsessions-tui"
+name = "pyharness-sessions"
 dynamic = ["version"]
-description = "Terminal UI for browsing, previewing, resuming and managing Claude Code sessions"
+description = "Terminal UI for browsing, previewing, resuming and managing pyharness and Claude Code sessions"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
+# forked from ccsessions by Marek Miśkiewicz (see UPSTREAM.md and LICENSE)
 authors = [
     { name = "Marek Miśkiewicz" },
 ]
@@ -29,8 +30,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/miskiewiczm/ccsessions"
-Issues = "https://github.com/miskiewiczm/ccsessions/issues"
+Homepage = "https://github.com/thattaway/pyharness"
+Upstream = "https://github.com/miskiewiczm/ccsessions"
 
 [project.scripts]
 ccsessions = "ccsessions.__main__:main"

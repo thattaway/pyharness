@@ -678,7 +678,7 @@ class CCSessionsApp(App):
         self.screen.set_class(not wide, "-narrow")
 
     def on_mount(self) -> None:
-        self.title = "Claude Code Sessions"
+        self.title = "Sessions · pyharness and Claude Code"
         self.sub_title = ""
         self.register_theme(NORD_LIGHT)
         # precedence: env var > theme saved from a previous run > default

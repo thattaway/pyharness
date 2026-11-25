@@ -14,10 +14,16 @@ few minutes the first time.
 
 - **git**, and a C toolchain (`build-essential` on Debian/Ubuntu, Xcode
   Command Line Tools on macOS).
-- **Internet access on first launch.** pyharness sets up its own Python
-  environment the first time it starts (it downloads `uv`, Python and a few
-  Python packages). After that it runs offline. You do not need to install
-  Python or `uv` yourself.
+- **[uv](https://docs.astral.sh/uv/)**, on your `PATH` or at
+  `~/.local/bin/uv`. pyharness uses it to set up the agent's Python
+  environment, and does not install it for you:
+
+  ```bash
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  ```
+
+- **Internet access on first launch.** The first start downloads Python and a
+  few Python packages through `uv`. After that it runs offline.
 
 ## 2. Build
 
@@ -121,6 +127,7 @@ Useful commands:
 
 ```bash
 pyharness agents          # browse running, idle and saved sessions
+pyharness sessions --ui   # full-screen session manager (also shows Claude Code sessions)
 pyharness --resume        # pick a saved session to resume
 pyharness status          # show the background service state
 pyharness doctor --fix    # check and repair the background service

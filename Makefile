@@ -4,6 +4,11 @@ check:
 	cargo clippy --workspace --all-targets -- -D warnings
 	cargo test --workspace
 	cargo build --release --workspace
+	$(MAKE) sessions-test
+
+# The session manager in tools/sessions (Python, run through uv).
+sessions-test:
+	cd tools/sessions && uv run --quiet --with pytest python -m pytest -q
 
 
 # Supply-chain gates — local mirrors of the
@@ -199,7 +204,7 @@ shard-gates:
 	python3 scripts/test_ci_test_shard.py
 	python3 scripts/test_ci_pr_crates.py
 
-.PHONY: check deny windows-cross actionlint glibc-gate release-dry-run continuous-dry-run audit-build package catalog-assets catalog-assets-fixture catalog-assets-gates fold-gates restamp-gates shard-gates perf
+.PHONY: check sessions-test deny windows-cross actionlint glibc-gate release-dry-run continuous-dry-run audit-build package catalog-assets catalog-assets-fixture catalog-assets-gates fold-gates restamp-gates shard-gates perf
 
 # Offline packaging contract tests for updaters shipped since pyharness 0.6.
 legacy-upgrade-gates:

@@ -102,6 +102,7 @@ Useful commands:
 
 ```bash
 pyharness agents                   # Browse running, idle, and saved sessions
+pyharness sessions --ui            # Full-screen session manager (also shows Claude Code sessions)
 pyharness attach <agent>           # Reattach to a running session
 pyharness --resume [path|id]       # Browse sessions or resume one directly
 pyharness status                   # Inspect background service state

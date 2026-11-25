@@ -59,12 +59,13 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
     ]),
     CommandSpec::new(
         &["sessions"],
-        "sessions [--all] [--json]",
+        "sessions [--all] [--json] | sessions --ui",
         "Show agent status, activity, and usage",
     )
     .options(&[
         "-a, --all  Include saved agents",
         "--json      Print JSON",
+        "--ui       Open the full-screen session manager (pyharness and Claude Code sessions)",
     ]),
     CommandSpec::new(
         &["attach"],
@@ -229,8 +230,13 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
     CommandSpec::new(&["model", "list"], "model list [search]", "List available models"),
     CommandSpec::new(
         &["session"],
-        "session export <file> [output]",
+        "session <export|delete> <file>",
         "Manage saved sessions",
+    ),
+    CommandSpec::new(
+        &["session", "delete"],
+        "session delete <file> [--json]",
+        "Delete a saved session (refused while it is running)",
     ),
     CommandSpec::new(
         &["session", "export"],

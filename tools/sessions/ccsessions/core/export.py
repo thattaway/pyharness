@@ -230,7 +230,8 @@ def markdown_chunks(entries: Iterable[Entry]) -> Iterator[str]:
 def export_markdown(session: Session, dest: Path) -> Path:
     """Write the whole conversation as Markdown with YAML front matter."""
     try:
-        with open(dest, "w", encoding="utf-8") as out:
+        # "x": fail rather than overwrite a file created after the name was chosen
+        with open(dest, "x", encoding="utf-8") as out:
             out.write(front_matter(session))
             for chunk in markdown_chunks(iter_conversation(session.jsonl_path)):
                 out.write(chunk)
@@ -244,7 +245,9 @@ def export_raw(session: Session, dest: Path) -> Path:
     if not session.jsonl_path.is_file():
         raise ExportError("transcript file not available on this machine")
     try:
-        shutil.copy2(session.jsonl_path, dest)
+        with open(session.jsonl_path, "rb") as src, open(dest, "xb") as out:
+            shutil.copyfileobj(src, out)
+        shutil.copystat(session.jsonl_path, dest)
     except OSError as e:
         raise ExportError(str(e)) from e
     return dest

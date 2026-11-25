@@ -116,8 +116,10 @@ def _load_project(
     for sid, entry in indexed.items():
         if sid in seen:
             continue
-        full = entry.get("fullPath")
-        path = Path(full) if isinstance(full, str) else proj_dir / f"{sid}.jsonl"
+        # the transcript always lives in this project directory; an index
+        # path pointing anywhere else (another machine, a stale entry) is
+        # ignored, so delete and archive can never reach outside it
+        path = proj_dir / f"{sid}.jsonl"
         # include archived entries (no .jsonl on disk) — still useful as history
         sessions.append(_build_session(sid, path, entry, live_ids, project_path, cache))
 

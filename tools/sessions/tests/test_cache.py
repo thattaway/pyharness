@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 
 from ccsessions.core.cache import TokenCache
+from ccsessions.core.models import TokenStats
 from ccsessions.core.parser import get_token_stats
 
 from conftest import write_transcript
@@ -39,3 +40,13 @@ def test_corrupted_cache_file_is_tolerated(tmp_path):
     f = tmp_path / "s.jsonl"
     write_transcript(f)
     assert get_token_stats(f, cache).total == 30
+
+
+def test_entries_from_an_older_stats_version_are_recomputed(tmp_path):
+    jsonl = tmp_path / "s.jsonl"
+    jsonl.write_text("{}\n", encoding="utf-8")
+    cache = TokenCache(tmp_path / "cache.json")
+    cache.put(jsonl, TokenStats(input=5), jsonl.stat())
+    assert cache.get(jsonl) is not None
+    cache._entries[str(jsonl)].pop("version")
+    assert cache.get(jsonl) is None

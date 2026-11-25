@@ -112,3 +112,34 @@ def test_tail_reads_only_end_of_file(tmp_path):
     assert len(tail) == 5
     # the freshest entries win
     assert tail[-1][1].endswith("199")
+
+
+def test_a_reply_split_across_lines_counts_once(tmp_path):
+    """Claude Code writes one reply as several lines (one per content block),
+    each repeating the reply's usage; tool results are user lines too."""
+    usage = {"input_tokens": 100, "output_tokens": 40, "cache_read_input_tokens": 1000}
+    reply = {"id": "msg_1", "role": "assistant", "usage": usage}
+    lines = [
+        {"type": "user", "message": {"role": "user", "content": "run the tests"}},
+        {"type": "assistant", "message": {**reply, "content": [{"type": "thinking", "thinking": "hm"}]}},
+        {"type": "assistant", "message": {**reply, "content": [{"type": "text", "text": "Running."}]}},
+        {"type": "assistant", "message": {**reply, "content": [{"type": "tool_use", "name": "Bash", "input": {}}]}},
+        {"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "content": "ok"}]}},
+    ]
+    f = tmp_path / "s.jsonl"
+    f.write_text("\n".join(json.dumps(x) for x in lines) + "\n", encoding="utf-8")
+    stats = compute_token_stats(f)
+    assert (stats.input, stats.output, stats.cache_read) == (100, 40, 1000)
+    assert stats.messages == 2
+
+
+def test_a_bad_usage_value_does_not_lose_the_session(tmp_path):
+    lines = [
+        {"type": "user", "message": {"role": "user", "content": "hi"}},
+        {"type": "assistant", "message": {"id": "a", "role": "assistant", "content": [],
+                                          "usage": {"input_tokens": "lots", "output_tokens": 7}}},
+    ]
+    f = tmp_path / "s.jsonl"
+    f.write_text("\n".join(json.dumps(x) for x in lines) + "\n", encoding="utf-8")
+    stats = compute_token_stats(f)
+    assert (stats.input, stats.output, stats.messages) == (0, 7, 2)

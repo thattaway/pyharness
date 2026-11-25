@@ -199,3 +199,19 @@ def test_export_missing_transcript_raises(tmp_path):
     s.jsonl_path.unlink()
     with pytest.raises(ExportError):
         export_session(s, str(tmp_path), MARKDOWN)
+
+
+def test_export_never_overwrites_a_file_created_after_the_name_was_chosen(tmp_path):
+    import pytest
+
+    from ccsessions.core.export import ExportError, export_markdown
+    from ccsessions.core.models import Session
+    from conftest import write_transcript
+
+    jsonl = tmp_path / "s.jsonl"
+    write_transcript(jsonl)
+    dest = tmp_path / "out.md"
+    dest.write_text("someone else's file", encoding="utf-8")
+    with pytest.raises(ExportError):
+        export_markdown(Session(session_id="s", jsonl_path=jsonl, project_path="/p"), dest)
+    assert dest.read_text(encoding="utf-8") == "someone else's file"

@@ -48,11 +48,36 @@ def _prompt_text(content: object) -> str:
     return content.strip()
 
 
+def _count(value: object) -> int:
+    """A token count from a usage field; anything that is not a number counts as 0."""
+    if isinstance(value, bool):
+        return 0
+    if isinstance(value, (int, float)):
+        return int(value)
+    return 0
+
+
+def _is_tool_result(content: object) -> bool:
+    return isinstance(content, list) and any(
+        isinstance(c, dict) and c.get("type") == "tool_result" for c in content
+    )
+
+
 def compute_token_stats(jsonl_path: Path) -> TokenStats:
+    """Token usage, message count and titles for one transcript.
+
+    Claude Code writes a single reply as several lines, one per content block
+    (thinking, text, tool call), and every one of them repeats the reply's
+    `usage`. Usage is therefore taken once per reply (keyed by `message.id`,
+    the last line wins), and the reply counts as one message. Tool results are
+    stored as user lines but are not messages anyone typed, so they don't count.
+    """
     stats = TokenStats()
+    usage_by_reply: dict[str, dict] = {}
+    replies: set[str] = set()
     try:
         with open(jsonl_path, encoding="utf-8", errors="replace") as f:
-            for line in f:
+            for number, line in enumerate(f):
                 line = line.strip()
                 if not line:
                     continue
@@ -60,32 +85,44 @@ def compute_token_stats(jsonl_path: Path) -> TokenStats:
                     obj = json.loads(line)
                 except json.JSONDecodeError:
                     continue
-                if isinstance(obj, dict) and obj.get("type") == "custom-title":
+                if not isinstance(obj, dict):
+                    continue
+                if obj.get("type") == "custom-title":
                     title = obj.get("customTitle")
                     if isinstance(title, str):
                         stats.custom_title = title.strip()
                     continue
-                if isinstance(obj, dict) and obj.get("type") == "ai-title":
+                if obj.get("type") == "ai-title":
                     title = obj.get("aiTitle")
                     if isinstance(title, str):
                         stats.ai_title = title.strip()
                     continue
-                msg = obj.get("message") if isinstance(obj, dict) else None
-                if not isinstance(msg, dict):
+                msg = obj.get("message")
+                if not isinstance(msg, dict) or obj.get("isMeta"):
                     continue
-                if obj.get("type") in ("user", "assistant") and not obj.get("isMeta"):
+                if obj.get("type") == "user":
+                    content = msg.get("content")
+                    if _is_tool_result(content):
+                        continue
                     stats.messages += 1
-                if obj.get("type") == "user" and not obj.get("isMeta") and not stats.first_prompt:
-                    stats.first_prompt = _prompt_text(msg.get("content"))
-                usage = msg.get("usage")
-                if not isinstance(usage, dict):
-                    continue
-                stats.input += int(usage.get("input_tokens") or 0)
-                stats.output += int(usage.get("output_tokens") or 0)
-                stats.cache_read += int(usage.get("cache_read_input_tokens") or 0)
-                stats.cache_write += int(usage.get("cache_creation_input_tokens") or 0)
+                    if not stats.first_prompt:
+                        stats.first_prompt = _prompt_text(content)
+                elif obj.get("type") == "assistant":
+                    reply_id = msg.get("id")
+                    key = reply_id if isinstance(reply_id, str) and reply_id else f"line:{number}"
+                    if key not in replies:
+                        replies.add(key)
+                        stats.messages += 1
+                    usage = msg.get("usage")
+                    if isinstance(usage, dict):
+                        usage_by_reply[key] = usage
     except OSError:
         pass
+    for usage in usage_by_reply.values():
+        stats.input += _count(usage.get("input_tokens"))
+        stats.output += _count(usage.get("output_tokens"))
+        stats.cache_read += _count(usage.get("cache_read_input_tokens"))
+        stats.cache_write += _count(usage.get("cache_creation_input_tokens"))
     return stats
 
 
@@ -209,21 +246,23 @@ def read_conversation_tail(
     jsonl_path: Path,
     max_entries: int = 40,
     max_bytes: int = 512_000,
+    end: int | None = None,
 ) -> list[Entry]:
     """Last conversation entries, newest last.
 
     Entry.role is 'user', 'assistant', 'tool' (tool call), 'command'
     (slash command) or 'command-output'. Only the tail of the file
     (max_bytes) is read, so this stays fast even for transcripts
-    spanning many megabytes.
+    spanning many megabytes. `end` stops the read at that byte offset
+    instead of the end of the file.
     """
     try:
         with open(jsonl_path, "rb") as f:
             f.seek(0, os.SEEK_END)
-            size = f.tell()
+            size = f.tell() if end is None else min(end, f.tell())
             start = max(0, size - max_bytes)
             f.seek(start)
-            data = f.read()
+            data = f.read(size - start)
     except OSError:
         return []
     lines = data.decode("utf-8", errors="replace").splitlines()

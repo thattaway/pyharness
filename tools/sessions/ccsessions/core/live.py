@@ -35,3 +35,12 @@ def get_live_session_ids(base: Path = DEFAULT_SESSIONS_DIR) -> set[str]:
         if _pid_alive(pid):
             alive.add(sid)
     return alive
+
+
+def running_now(session_ids: "set[str] | list[str]", base: Path = DEFAULT_SESSIONS_DIR) -> set[str]:
+    """Which of `session_ids` are running right now.
+
+    The scan's `is_live` can be minutes old; destructive actions re-check
+    with this just before they act, in case a session was resumed since.
+    """
+    return set(session_ids) & get_live_session_ids(base)

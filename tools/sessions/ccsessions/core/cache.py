@@ -8,6 +8,10 @@ from .models import TokenStats
 
 DEFAULT_CACHE_PATH = Path.home() / ".cache" / "ccsessions" / "token-stats.json"
 
+# Bumped whenever the way stats are computed changes, so entries written by an
+# older version are recomputed instead of shown. 2: replies counted once.
+STATS_VERSION = 2
+
 
 class TokenCache:
     """Per-JSONL-file token stats cache.
@@ -43,6 +47,8 @@ class TokenCache:
                 return None
         if entry.get("mtime_ns") != stat.st_mtime_ns or entry.get("size") != stat.st_size:
             return None
+        if entry.get("version") != STATS_VERSION:
+            return None
         try:
             return TokenStats(
                 input=int(entry["input"]),
@@ -60,6 +66,7 @@ class TokenCache:
 
     def put(self, jsonl: Path, stats: TokenStats, stat: os.stat_result) -> None:
         self._entries[str(jsonl)] = {
+            "version": STATS_VERSION,
             "mtime_ns": stat.st_mtime_ns,
             "size": stat.st_size,
             "input": stats.input,

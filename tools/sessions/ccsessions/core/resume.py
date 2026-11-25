@@ -32,6 +32,10 @@ def execute_resume(req: ResumeRequest) -> None:
     claude_bin = shutil.which("claude")
     if not claude_bin:
         raise ResumeError("`claude` not found in PATH")
-    if req.cwd and os.path.isdir(req.cwd):
+    # Claude Code finds a session through the working directory, so resuming
+    # anywhere else fails with "no conversation found"
+    if req.cwd and not os.path.isdir(req.cwd):
+        raise ResumeError(f"the session's project folder no longer exists: {req.cwd}")
+    if req.cwd:
         os.chdir(req.cwd)
     os.execvp(claude_bin, ["claude", "--resume", req.session_id])

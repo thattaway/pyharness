@@ -134,3 +134,16 @@ def test_worktree_is_told_apart_from_its_main_checkout(fake_base):
         "fake-project",
         "fake-project ⎇ feature",
     }
+
+
+def test_running_now_reads_the_live_markers_at_call_time(tmp_path):
+    import json
+    import os
+
+    from ccsessions.core.live import running_now
+
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    assert running_now({"a", "b"}, base=sessions) == set()
+    (sessions / "1.json").write_text(json.dumps({"pid": os.getpid(), "sessionId": "a"}))
+    assert running_now({"a", "b"}, base=sessions) == {"a"}

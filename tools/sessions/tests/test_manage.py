@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from unittest.mock import patch
 
 import pytest
@@ -93,3 +94,39 @@ def test_delete_project_removes_directory(fake_base):
     project = discover_projects(base=fake_base)[0]
     delete_project(project)
     assert not (fake_base / "-tmp-fake-project").exists()
+
+
+def test_an_index_path_outside_the_project_is_never_touched(fake_base, tmp_path):
+    outside = tmp_path / "precious.txt"
+    outside.write_text("keep me", encoding="utf-8")
+    proj = fake_base / "-tmp-fake-project"
+    index = json.loads((proj / "sessions-index.json").read_text())
+    index["entries"].append({"sessionId": "22222222-0000-0000-0000-000000000002",
+                             "fullPath": str(outside)})
+    (proj / "sessions-index.json").write_text(json.dumps(index))
+    s = next(s for s in discover_projects(base=fake_base)[0].sessions
+             if s.session_id.startswith("2222"))
+    assert s.is_missing
+    delete_session(s)
+    assert outside.read_text(encoding="utf-8") == "keep me"
+
+
+def test_archive_refuses_to_overwrite_an_archived_copy(fake_base):
+    s = _session(fake_base)
+    archived = s.jsonl_path.parent / manage.ARCHIVE_SUBDIR / s.jsonl_path.name
+    archived.parent.mkdir()
+    archived.write_text("older copy", encoding="utf-8")
+    with pytest.raises(ManageError):
+        archive_session(s)
+    assert archived.read_text(encoding="utf-8") == "older copy"
+    assert s.jsonl_path.is_file()
+
+
+def test_restore_refuses_to_overwrite_an_active_copy(fake_base):
+    s = _session(fake_base)
+    archive_session(s)
+    s.jsonl_path.write_text("newer copy", encoding="utf-8")
+    archived_path = s.jsonl_path.parent / manage.ARCHIVE_SUBDIR / s.jsonl_path.name
+    with pytest.raises(ManageError):
+        restore_session(replace(s, jsonl_path=archived_path, is_archived=True))
+    assert s.jsonl_path.read_text(encoding="utf-8") == "newer copy"

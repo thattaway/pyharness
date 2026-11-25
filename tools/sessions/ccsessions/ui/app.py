@@ -25,6 +25,7 @@ from ..core.aliases import ProjectAliases
 from ..core.cache import TokenCache
 from ..core.discovery import discover_projects
 from ..core.export import MARKDOWN, RAW, ExportError, export_session
+from ..core.live import running_now
 from ..core.manage import (
     ManageError,
     archive_project,
@@ -1243,8 +1244,13 @@ class CCSessionsApp(App):
 
     def action_resume(self) -> None:
         s = self._selected_session()
-        if s is not None:
-            self.exit(ResumeRequest(session_id=s.session_id, cwd=s.project_path))
+        if s is None:
+            return
+        if s.project_path and not Path(s.project_path).is_dir():
+            self._set_status(f"Project folder no longer exists: {s.project_path}")
+            self.bell()
+            return
+        self.exit(ResumeRequest(session_id=s.session_id, cwd=s.project_path))
 
     def action_copy_resume(self) -> None:
         s = self._selected_session()
@@ -1253,6 +1259,11 @@ class CCSessionsApp(App):
         cmd = build_resume_command(ResumeRequest(session_id=s.session_id, cwd=s.project_path))
         self.copy_to_clipboard(cmd)
         self._set_status(f"Copied to clipboard: {cmd}")
+
+    @staticmethod
+    def _running_now(sessions: "list[Session]") -> bool:
+        """Re-check liveness at the moment of acting: the last scan can be stale."""
+        return bool(running_now([s.session_id for s in sessions]))
 
     def _focus_on_projects(self) -> bool:
         focused = self.focused
@@ -1420,7 +1431,7 @@ class CCSessionsApp(App):
             p = self._current_project()
             if p is None:
                 return
-            if p.has_live:
+            if p.has_live or self._running_now(p.sessions):
                 self._set_status("Project has a live session — not archiving")
                 self.bell()
                 return
@@ -1440,7 +1451,7 @@ class CCSessionsApp(App):
             self._set_status("File not on this machine — nothing to archive")
             self.bell()
             return
-        if s.is_live:
+        if s.is_live or self._running_now([s]):
             self._set_status("Session is live — not archiving")
             self.bell()
             return
@@ -1505,6 +1516,10 @@ class CCSessionsApp(App):
             def on_project_confirm(ok: bool | None) -> None:
                 if not ok:
                     return
+                if self._running_now(p.sessions):
+                    self._set_status("A session in this project started running — not deleting")
+                    self.bell()
+                    return
                 try:
                     delete_project(p)
                 except ManageError as e:
@@ -1537,6 +1552,10 @@ class CCSessionsApp(App):
 
         def on_session_confirm(ok: bool | None) -> None:
             if not ok:
+                return
+            if self._running_now([s]):
+                self._set_status("Session started running — not deleting")
+                self.bell()
                 return
             try:
                 delete_session(s)

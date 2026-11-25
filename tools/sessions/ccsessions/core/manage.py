@@ -24,6 +24,8 @@ def archive_session(session: Session) -> Path:
     try:
         dest_dir.mkdir(exist_ok=True)
         dest = dest_dir / session.jsonl_path.name
+        if dest.exists():
+            raise ManageError(f"the archive already holds {dest.name}")
         session.jsonl_path.rename(dest)
     except OSError as e:
         raise ManageError(str(e)) from e
@@ -37,6 +39,8 @@ def restore_session(session: Session) -> Path:
     if session.jsonl_path.parent.name != ARCHIVE_SUBDIR:
         raise ManageError("session is not archived")
     dest = session.jsonl_path.parent.parent / session.jsonl_path.name
+    if dest.exists():
+        raise ManageError(f"the project already holds {dest.name}")
     try:
         session.jsonl_path.rename(dest)
     except OSError as e:
@@ -58,8 +62,11 @@ def _remove_index_entry(proj_dir: Path, session_id: str) -> None:
     kept = [e for e in entries if not (isinstance(e, dict) and e.get("sessionId") == session_id)]
     if len(kept) != len(entries):
         data["entries"] = kept
+        # temp file + rename: Claude Code may read or write the index at any time
+        tmp = index_path.with_name(index_path.name + ".tmp")
         try:
-            index_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            tmp.replace(index_path)
         except OSError:
             pass
 

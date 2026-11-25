@@ -151,3 +151,35 @@ def test_live_dir_override_redirects_documents(session, tmp_path, monkeypatch):
     assert doc.out_path == elsewhere / "_session_abc-123.md"
     assert doc.out_path.is_file()
     assert not (tmp_path / "_session_abc-123.md").exists()
+
+
+def test_a_character_split_between_two_reads_stays_intact(session):
+    doc = LiveDoc(session)
+    raw = json.dumps(
+        {"type": "user", "message": {"role": "user", "content": "zażółć gęślą jaźń"}},
+        ensure_ascii=False,
+    ).encode() + b"\n"
+    cut = raw.index("ż".encode()) + 1  # stop inside the two bytes of "ż"
+    with open(session.jsonl_path, "ab") as f:
+        f.write(raw[:cut])
+    doc.poll(session, force=True)
+    with open(session.jsonl_path, "ab") as f:
+        f.write(raw[cut:])
+    doc.poll(session, force=True)
+    assert "zażółć gęślą jaźń" in doc.out_path.read_text(encoding="utf-8")
+
+
+def test_lines_written_while_starting_are_read_once(session, monkeypatch):
+    import ccsessions.core.watch as watch
+
+    real_tail = watch.read_conversation_tail
+
+    def tail_after_a_write(*args, **kwargs):
+        append(session, "assistant", "written during start")
+        return real_tail(*args, **kwargs)
+
+    monkeypatch.setattr(watch, "read_conversation_tail", tail_after_a_write)
+    doc = LiveDoc(session)
+    doc.poll(session, force=True)
+    text = doc.out_path.read_text(encoding="utf-8")
+    assert text.count("written during start") == 1

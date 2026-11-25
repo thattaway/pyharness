@@ -58,7 +58,7 @@ class LiveDoc:
         self.window = window
         self._entries: deque[Entry] = deque(maxlen=window)
         self._offset = 0
-        self._partial = ""
+        self._partial = b""  # bytes of a line still being written
         self._last_write = 0.0
         self._dirty = True
         if not self.out_path.parent.is_dir():
@@ -77,8 +77,12 @@ class LiveDoc:
             size = self.jsonl_path.stat().st_size
         except OSError as e:
             raise WatchError(str(e)) from e
+        # read up to the size measured above, so lines appended meanwhile are
+        # left for the first poll instead of being read twice
         self._entries.extend(
-            read_conversation_tail(self.jsonl_path, max_entries=self.window, max_bytes=PRIME_BYTES)
+            read_conversation_tail(
+                self.jsonl_path, max_entries=self.window, max_bytes=PRIME_BYTES, end=size
+            )
         )
         self._offset = size
 
@@ -90,7 +94,7 @@ class LiveDoc:
             return False
         if size < self._offset:  # truncated or replaced — start over
             self._entries.clear()
-            self._partial = ""
+            self._partial = b""
             self._offset = 0
         if size == self._offset:
             return False
@@ -101,11 +105,12 @@ class LiveDoc:
         except OSError:
             return False
         self._offset += len(data)
-        text = self._partial + data.decode("utf-8", errors="replace")
-        lines = text.split("\n")
+        # split on bytes, decode only whole lines: a multi-byte character cut
+        # between two reads must not turn into replacement characters
+        lines = (self._partial + data).split(b"\n")
         self._partial = lines.pop()  # trailing fragment of an unfinished line
         for line in lines:
-            self._entries.extend(entries_from_line(line))
+            self._entries.extend(entries_from_line(line.decode("utf-8", errors="replace")))
         return True
 
     def _render(self, session: Session) -> str:

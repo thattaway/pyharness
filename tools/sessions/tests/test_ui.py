@@ -1,0 +1,423 @@
+from __future__ import annotations
+
+import asyncio
+import json
+from pathlib import Path
+from unittest.mock import patch
+
+from textual.color import Color
+from textual.containers import VerticalScroll
+from textual.widgets import DataTable, Input, Static
+from textual.widgets._footer import FooterKey
+
+import ccsessions.ui.app as appmod
+from ccsessions.core.models import Project, Session
+from ccsessions.ui.app import CCSessionsApp, code_theme_for, number_color
+
+
+def _fake_projects() -> list[Project]:
+    def session(sid: str, prompt: str) -> Session:
+        return Session(
+            session_id=sid,
+            jsonl_path=Path(f"/nonexistent/{sid}.jsonl"),
+            project_path="/tmp/x",
+            first_prompt=prompt,
+        )
+
+    alpha = Project(
+        project_path="/tmp/alpha",
+        encoded_dir=Path("/tmp/enc-a"),
+        sessions=[session("s1", "fix the parser"), session("s2", "write docs")],
+    )
+    beta = Project(
+        project_path="/tmp/beta",
+        encoded_dir=Path("/tmp/enc-b"),
+        sessions=[session("s3", "deploy app")],
+    )
+    return [alpha, beta]
+
+
+async def _exercise_filters() -> None:
+    app = CCSessionsApp()
+    with patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()):
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            pt = app.query_one("#projects-table", DataTable)
+            st = app.query_one("#sessions-table", DataTable)
+            inp = app.query_one("#filter-input", Input)
+            assert pt.row_count == 2
+
+            # filter projects down to "beta"
+            await pilot.press("/")
+            for ch in "beta":
+                await pilot.press(ch)
+            await pilot.pause()
+            assert pt.row_count == 1
+            project = app._current_project()
+            assert project is not None and project.display_name == "beta"
+
+            # enter applies and returns focus; escape clears
+            await pilot.press("enter")
+            await pilot.pause()
+            assert not inp.display and app.focused is pt
+            await pilot.press("/")
+            await pilot.press("escape")
+            await pilot.pause()
+            assert pt.row_count == 2
+            # clearing the filter keeps the selected project, it does not snap back
+            selected = app._current_project()
+            assert selected is not None and selected.display_name == "beta"
+
+            # back to the first project for the session filter
+            await pilot.press("k")
+            await pilot.pause()
+            await pilot.press("tab")
+            await pilot.press("/")
+            for ch in "docs":
+                await pilot.press(ch)
+            await pilot.pause()
+            assert st.row_count == 1
+            selected = app._current_session()
+            assert selected is not None and selected.first_prompt == "write docs"
+            await pilot.press("escape")
+            await pilot.pause()
+            assert st.row_count == 2
+
+
+def test_filter_projects_and_sessions():
+    asyncio.run(_exercise_filters())
+
+
+async def _exercise_export(tmp_path: Path) -> None:
+    projects = _fake_projects()
+    # give the first session a real transcript so the export has content
+    transcript = tmp_path / "s1.jsonl"
+    transcript.write_text(
+        json.dumps({"type": "user", "message": {"role": "user", "content": "hello"}}) + "\n",
+        encoding="utf-8",
+    )
+    projects[0].sessions[0].jsonl_path = transcript
+
+    app = CCSessionsApp()
+    with patch.object(appmod, "discover_projects", lambda **_kw: projects):
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            await pilot.press("tab")  # focus the sessions pane
+            await pilot.press("e")
+            await pilot.pause()
+            app.screen.query_one("#export-path", Input).value = str(tmp_path)
+            await pilot.press("enter")
+            await pilot.pause()
+            exported = [p for p in tmp_path.iterdir() if p.suffix == ".md"]
+            assert len(exported) == 1
+            assert "### You\n\nhello" in exported[0].read_text(encoding="utf-8")
+
+            # escape cancels without writing anything
+            await pilot.press("e")
+            await pilot.press("escape")
+            await pilot.pause()
+            assert len([p for p in tmp_path.iterdir() if p.suffix == ".md"]) == 1
+
+
+def test_export_from_ui(tmp_path):
+    asyncio.run(_exercise_export(tmp_path))
+
+
+async def _exercise_refresh_keeps_selection() -> None:
+    state = {"extra": False}
+
+    def build(**_kw):
+        projects = _fake_projects()
+        if state["extra"]:
+            fresh = Session(
+                session_id="s-new",
+                jsonl_path=Path("/nonexistent/new.jsonl"),
+                project_path="/tmp/x",
+                first_prompt="brand new session",
+                is_live=True,
+            )
+            projects[0].sessions.insert(0, fresh)
+        return projects
+
+    app = CCSessionsApp()
+    with patch.object(appmod, "discover_projects", build):
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            stable = app.query_one("#sessions-table", DataTable)
+            await pilot.press("tab")  # sessions pane
+            await pilot.press("j")  # second session
+            await pilot.pause()
+            before = app._current_session()
+            assert before is not None and before.first_prompt == "write docs"
+
+            # a rescan that prepends a new live session must not move the cursor
+            state["extra"] = True
+            app._tick_refresh()
+            await app.workers.wait_for_complete()
+            for _ in range(4):
+                await pilot.pause()
+
+            after = app._current_session()
+            assert stable.row_count == 3
+            assert after is not None and after.first_prompt == "write docs"
+
+
+def test_refresh_keeps_selection():
+    asyncio.run(_exercise_refresh_keeps_selection())
+
+
+async def _exercise_watch(tmp_path: Path) -> None:
+    projects = _fake_projects()
+    session = projects[0].sessions[0]
+    transcript = tmp_path / "watched.jsonl"
+    transcript.write_text(
+        json.dumps({"type": "user", "message": {"role": "user", "content": "hello"}}) + "\n",
+        encoding="utf-8",
+    )
+    session.jsonl_path = transcript
+    session.project_path = str(tmp_path)
+    session.is_live = True
+
+    app = CCSessionsApp()
+    with patch.object(appmod, "discover_projects", lambda **_kw: projects):
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            await pilot.press("tab")  # sessions pane
+            assert app._watch_state(session) == ""
+
+            await pilot.press("l")  # start following
+            await pilot.pause()
+            doc = tmp_path / f"_session_{session.session_id}.md"
+            assert doc.is_file()
+            assert app._watch_state(session) == "live"
+            assert "### You\n\nhello" in doc.read_text(encoding="utf-8")
+
+            # the details pane advertises the document path
+            details = str(app.query_one("#preview-content", Static).render())
+            assert "Live document" in details
+
+            await pilot.press("w")  # stop following, with the former key
+            await pilot.pause()
+            assert doc.is_file()  # the file stays behind
+            assert app._watch_state(session) == "stale"
+
+
+def test_watch_toggle_creates_and_keeps_document(tmp_path):
+    asyncio.run(_exercise_watch(tmp_path))
+
+
+async def _exercise_refresh_keeps_scroll() -> None:
+    projects = _fake_projects()
+    projects[0].sessions = [
+        Session(
+            session_id=f"s{i}",
+            jsonl_path=Path(f"/nonexistent/s{i}.jsonl"),
+            project_path="/tmp/x",
+            first_prompt=f"task {i}",
+        )
+        for i in range(60)
+    ]
+    app = CCSessionsApp()
+    with patch.object(appmod, "discover_projects", lambda **_kw: projects):
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            st = app.query_one("#sessions-table", DataTable)
+            await pilot.press("tab")  # sessions pane
+            for _ in range(40):
+                await pilot.press("j")
+            st.scroll_to(y=st.scroll_y - 3, animate=False, immediate=True)
+            await pilot.pause()
+            row, scroll_y = st.cursor_row, st.scroll_y
+            assert scroll_y > 0
+
+            app._tick_refresh()  # auto-refresh rescan
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            assert st.cursor_row == row
+            assert st.scroll_y == scroll_y
+
+
+def test_refresh_keeps_selection_and_scroll():
+    asyncio.run(_exercise_refresh_keeps_scroll())
+
+
+async def _exercise_refresh_keeps_project_sharing_path() -> None:
+    # a Claude worktree's sessions carry the main checkout's cwd: two projects, one path
+    projects = _fake_projects()
+    projects[1].project_path = projects[0].project_path
+    app = CCSessionsApp()
+    with patch.object(appmod, "discover_projects", lambda **_kw: projects):
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            pt = app.query_one("#projects-table", DataTable)
+            pt.move_cursor(row=1)
+            await pilot.pause()
+            selected = app._current_project()
+
+            app._tick_refresh()
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            assert app._current_project() is selected
+
+
+def test_refresh_keeps_project_sharing_a_path():
+    asyncio.run(_exercise_refresh_keeps_project_sharing_path())
+
+
+async def _exercise_square_brackets_in_titles(tmp_path: Path) -> None:
+    """A session named with /rename can contain anything, including markup."""
+    projects = _fake_projects()
+    projects[0].sessions[0].summary = "[urgent] refactor the parser"
+    app = CCSessionsApp()
+    with patch.object(appmod, "discover_projects", lambda **_kw: projects):
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+
+            # the status bar must show the name whole, not swallow the brackets
+            app._set_status("Session deleted: [urgent] refactor the parser")
+            await pilot.pause()
+            assert "[urgent]" in str(app.query_one("#status", Static).render())
+
+            # and so must a dialog built from the same title
+            await pilot.press("tab")
+            await pilot.press("e")
+            await pilot.pause()
+            title = str(app.screen.query_one("#export-title", Static).render())
+            assert "[urgent]" in title
+            await pilot.press("escape")
+            await pilot.pause()
+
+
+def test_square_brackets_in_titles_survive(tmp_path):
+    asyncio.run(_exercise_square_brackets_in_titles(tmp_path))
+
+
+async def _exercise_footer_and_aliases() -> None:
+    app = CCSessionsApp()
+    with patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()):
+        async with app.run_test(size=(160, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            labels = {k.key: k.render().plain for k in app.query(FooterKey)}
+            # the patched render lowercases and joins; Textual's own gives "r Resume"
+            assert labels["r"].strip() in ("resume", "- resume"), labels
+
+            # Ctrl+P still opens the palette, hidden from the footer
+            await pilot.press("ctrl+p")
+            await pilot.pause()
+            assert app.screen.__class__.__name__ == "CommandPalette"
+            await pilot.press("escape")
+            await pilot.pause()
+            assert "w" not in labels and "ctrl+p" not in labels
+
+
+def test_footer_renders_patched_labels_and_old_keys_remain():
+    asyncio.run(_exercise_footer_and_aliases())
+
+
+def test_counts_keep_their_yellow_when_the_theme_reddens_warnings():
+    """`warning` is a role: ansi-light maps it to bright red, counts are data."""
+    assert number_color("ansi_bright_red") == "ansi_yellow"  # the light ANSI theme
+    assert number_color("ansi_yellow") == "ansi_yellow"  # the dark one, unchanged
+    assert number_color("#ebcb8b") == "#ebcb8b"  # RGB themes bring their own
+    assert number_color(None) == "ansi_yellow"
+
+
+async def _exercise_light_theme_palette() -> None:
+    app = CCSessionsApp()
+    with patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()):
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            for theme, warning in (("ansi-light", "bright_red"), ("ansi-dark", "yellow")):
+                app.theme = theme
+                await pilot.pause()
+                pal = app._palette()
+                assert pal["warning"] == warning  # warnings follow the theme
+                assert pal["number"] == "yellow"  # counts do not turn red
+
+
+def test_counts_stay_yellow_across_ansi_themes():
+    asyncio.run(_exercise_light_theme_palette())
+
+
+async def _exercise_nord_light() -> None:
+    """Textual ships Nord dark only; the light one is ours and must resolve."""
+    app = CCSessionsApp()
+    with patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()):
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            app.theme = "nord-light"
+            await pilot.pause()
+
+            th = app.current_theme
+            assert not th.dark  # :light in the stylesheet keys off this
+            assert not th.ansi  # and :ansi must not match, or the greys win
+            # a themed palette has a tone between page and ink for the cursor bar
+            assert th.panel and th.panel != th.background
+            # fenced code must not come out dark on a light page
+            assert code_theme_for("nord-light", th.dark) == "default"
+
+
+def test_nord_light_is_available_and_light():
+    asyncio.run(_exercise_nord_light())
+
+
+async def _exercise_light_panes_share_one_background() -> None:
+    """Four panes, one sheet: no pane darker for holding focus or for being a table."""
+    app = CCSessionsApp()
+    with patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()):
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            app.theme = "nord-light"
+            await pilot.pause()
+
+            panes = {
+                "#projects-table": app.query_one("#projects-table", DataTable),
+                "#sessions-table": app.query_one("#sessions-table", DataTable),
+                "#info-scroll": app.query_one("#info-scroll", VerticalScroll),
+                "#conv-scroll": app.query_one("#conv-scroll", VerticalScroll),
+            }
+            # the pane with focus is marked by its border, not by a greyer background
+            assert panes["#projects-table"].has_focus
+            rendered = {name: w.background_colors[1] for name, w in panes.items()}
+            assert len(set(map(str, rendered.values()))) == 1, rendered
+
+
+def test_light_panes_share_one_background():
+    asyncio.run(_exercise_light_panes_share_one_background())
+
+
+async def _exercise_focused_pane_border() -> None:
+    with (
+        patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()),
+        patch.object(appmod, "load_settings", lambda: {}),
+        patch.object(appmod, "save_settings", lambda _s: None),
+    ):
+        app = CCSessionsApp()
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            app.theme = "monokai"
+            await pilot.pause()
+            accent = Color.parse(app.current_theme.accent)
+            primary = Color.parse(app.current_theme.primary)
+            projects = app.query_one("#projects-table")
+            sessions = app.query_one("#sessions-table")
+            assert projects.styles.border_top[1] == accent
+            assert sessions.styles.border_top[1] == primary
+
+            # the accent border follows the focus
+            await pilot.press("tab")
+            await pilot.pause()
+            assert projects.styles.border_top[1] == primary
+            assert sessions.styles.border_top[1] == accent
+
+
+def test_focused_pane_border_uses_accent():
+    asyncio.run(_exercise_focused_pane_border())

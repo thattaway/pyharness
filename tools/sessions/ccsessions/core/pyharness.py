@@ -29,6 +29,9 @@ AGENT_DIR_ENV = "PYHARNESS_CODING_AGENT_DIR"
 SESSION_DIR_ENV = "PYHARNESS_SESSION_DIR"
 # Set by `pyharness sessions --ui`: the binary that launched this app.
 BIN_ENV = "PYHARNESS_BIN"
+# Set by pyharness's `/sessions`: resuming a pyharness session writes it here
+# and exits, and the pyharness window that opened us switches to it.
+PICK_FILE_ENV = "PYHARNESS_SESSIONS_PICK_FILE"
 SOURCE = "pyharness"
 LIST_TIMEOUT = 5.0
 DELETE_TIMEOUT = 30.0
@@ -214,3 +217,19 @@ def delete_session(session: Session, binary: str | None = None) -> None:
     if result.returncode != 0:
         message = (result.stderr or result.stdout).strip().splitlines()
         raise PyharnessError(message[-1] if message else f"exit code {result.returncode}")
+
+
+def pick_file() -> Path | None:
+    """Where to write the picked session, when opened from pyharness's `/sessions`."""
+    value = os.environ.get(PICK_FILE_ENV, "").strip()
+    return Path(value) if value else None
+
+
+def write_pick(session: Session, destination: Path) -> None:
+    """Hand the picked session back to the pyharness window that opened us."""
+    tmp = destination.with_name(destination.name + ".tmp")
+    try:
+        tmp.write_text(json.dumps({"sessionFile": str(session.jsonl_path)}), encoding="utf-8")
+        tmp.replace(destination)
+    except OSError as e:
+        raise PyharnessError(f"could not hand the session back to pyharness: {e}") from e

@@ -62,6 +62,7 @@ pub mod exit_guard;
 pub(crate) mod exit_restore;
 pub mod export_share;
 mod external_editor;
+mod sessions_manager;
 pub mod factory_view;
 pub mod fuzzy;
 pub mod goal_surface;

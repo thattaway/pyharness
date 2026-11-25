@@ -9,6 +9,13 @@ Marek Miśkiewicz (MIT). See `UPSTREAM.md` for the imported version.
 
 ## Run it
 
+Inside pyharness, type `/sessions`. The manager takes over the screen; pick a
+pyharness session with `r` and the window switches to it, or press `q` to go
+back to where you were. (Claude Code sessions can't open inside pyharness:
+press `c` there to copy their resume command.)
+
+From a terminal:
+
 ```bash
 pyharness sessions --ui
 ```

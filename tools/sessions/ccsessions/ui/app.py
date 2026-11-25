@@ -1251,6 +1251,22 @@ class CCSessionsApp(App):
         s = self._selected_session()
         if s is None:
             return
+        destination = pyharness.pick_file()
+        if destination is not None:  # opened from pyharness's /sessions
+            if s.source != pyharness.SOURCE:
+                self._set_status(
+                    "Claude Code sessions can't open inside pyharness — press c to copy the command"
+                )
+                self.bell()
+                return
+            try:
+                pyharness.write_pick(s, destination)
+            except pyharness.PyharnessError as e:
+                self._set_status(str(e))
+                self.bell()
+                return
+            self.exit()
+            return
         if s.project_path and not Path(s.project_path).is_dir():
             self._set_status(f"Project folder no longer exists: {s.project_path}")
             self.bell()

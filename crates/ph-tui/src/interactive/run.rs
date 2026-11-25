@@ -1127,6 +1127,46 @@ async fn run_interactive_surface(
                                 session.apply_external_editor_outcome(outcome, &mut view);
                             }
                         }
+                        // `/sessions`: hand the terminal to the session manager like the
+                        // editor above, then open the session the user picked there.
+                        if session.take_sessions_manager_request() {
+                            let reader = match &renderer {
+                                Renderer::Terminal {
+                                    ui_tx, exit_guard, ..
+                                } => Some((ui_tx.clone(), exit_guard.clone())),
+                                Renderer::Headless { .. } => None,
+                            };
+                            match reader {
+                                Some((ui_tx, exit_guard)) => {
+                                    crate::input::stop_reader();
+                                    let stopped = TerminalHandoff {
+                                        renderer: &mut renderer,
+                                        view: &mut view,
+                                    }
+                                    .stop();
+                                    let outcome = match stopped {
+                                        Ok(()) => crate::sessions_manager::pick().await,
+                                        Err(error) => Err(error),
+                                    };
+                                    let resumed = TerminalHandoff {
+                                        renderer: &mut renderer,
+                                        view: &mut view,
+                                    }
+                                    .resume();
+                                    if let Err(error) = resumed {
+                                        session.error_row(&format!("{error:#}"), &mut view);
+                                    }
+                                    spawn_session_reader(ui_tx, exit_guard);
+                                    session.apply_sessions_manager_outcome(outcome, &mut view);
+                                }
+                                None => session.apply_sessions_manager_outcome(
+                                    Err(anyhow::anyhow!(
+                                        "the session manager needs a terminal"
+                                    )),
+                                    &mut view,
+                                ),
+                            }
+                        }
                         // The `/mcp` view resolved to an auth request: mount the inline auth panel
                         // and spawn the client auth command — no flow touches the terminal.
                         if session.pending_mcp_auth() {

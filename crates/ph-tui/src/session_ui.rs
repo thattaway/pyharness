@@ -407,6 +407,9 @@ pub(crate) struct SessionUi {
     /// loop performs the cycle right after dispatch, because the renderer is the loop's terminal.
     suspend_requested: bool,
     external_editor_request: Option<String>,
+    /// `/sessions` asked for the full-screen session manager: the interactive
+    /// loop hands it the terminal right after dispatch.
+    sessions_manager_requested: bool,
     /// The `/mcp` view's internal auth resolution: the loop mounts the panel
     /// and spawns the command through the auth seam, never the typed-command path.
     pending_mcp_auth: Option<McpAuthIntent>,

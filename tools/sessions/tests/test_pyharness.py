@@ -155,3 +155,17 @@ def test_sessions_dir_follows_the_pyharness_environment(monkeypatch, tmp_path):
     assert pyharness.sessions_dir() == tmp_path / "state" / "sessions"
     monkeypatch.setenv(pyharness.SESSION_DIR_ENV, str(tmp_path / "elsewhere"))
     assert pyharness.sessions_dir() == tmp_path / "elsewhere"
+
+
+def test_a_pick_is_written_for_the_pyharness_window(tmp_path, monkeypatch):
+    base = tmp_path / "sessions"
+    base.mkdir()
+    path = write_ph_session(base / "a.jsonl", "/work/alpha", sid="a")
+    session = pyharness.discover_pyharness_projects(base=base, running=set())[0].sessions[0]
+    destination = tmp_path / "pick.json"
+    monkeypatch.setenv(pyharness.PICK_FILE_ENV, str(destination))
+    assert pyharness.pick_file() == destination
+    pyharness.write_pick(session, destination)
+    assert json.loads(destination.read_text()) == {"sessionFile": str(path)}
+    monkeypatch.delenv(pyharness.PICK_FILE_ENV)
+    assert pyharness.pick_file() is None

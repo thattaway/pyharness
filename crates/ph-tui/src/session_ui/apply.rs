@@ -159,6 +159,36 @@ impl SessionUi {
         self.external_editor_request.take()
     }
 
+    /// Take a pending `/sessions` request: the interactive loop hands the
+    /// terminal to the session manager.
+    pub(crate) fn take_sessions_manager_request(&mut self) -> bool {
+        std::mem::take(&mut self.sessions_manager_requested)
+    }
+
+    /// Act on the session manager's result: a picked session is opened the
+    /// way `/resume <file>` opens it; quitting without a pick changes nothing.
+    pub(crate) fn apply_sessions_manager_outcome(
+        &mut self,
+        outcome: anyhow::Result<Option<std::path::PathBuf>>,
+        view: &mut AgentView,
+    ) {
+        match outcome {
+            Ok(None) => {}
+            Ok(Some(file)) => match self.resolve_resume_selector(&file.to_string_lossy()) {
+                Some(selection) => {
+                    self.pending_selection = Some(selection);
+                    self.exit_requested = true;
+                }
+                None => self.note(
+                    &format!("could not open session \"{}\"", file.display()),
+                    view,
+                ),
+            },
+            Err(error) => self.error_row(&format!("{error:#}"), view),
+        }
+        self.dirty = true;
+    }
+
     /// Report the run's first suspend cycle (`tui suspend used`),
     /// fire-and-forget. `outcome` is `resumed` or `failed`.
     pub(crate) fn track_suspend_used(&mut self, outcome: &'static str) {

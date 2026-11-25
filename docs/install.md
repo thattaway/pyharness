@@ -119,7 +119,8 @@ cd /path/to/project
 pyharness
 ```
 
-Choose or switch models with `/model`. pyharness can run commands and edit
+Choose or switch models with `/model`, and open the session manager with
+`/sessions` to browse, preview, delete or switch to another session. pyharness can run commands and edit
 files in this folder with your permissions, so try it on a scratch copy or a
 clean git checkout first.
 

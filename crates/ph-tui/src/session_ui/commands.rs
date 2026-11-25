@@ -161,6 +161,10 @@ impl SessionUi {
                     self.send_prompt(&prompt, SubmitBehavior::Steer, view)?;
                 }
             }
+            // `/sessions` hands the terminal to the session manager (the loop runs it).
+            "sessions" => {
+                self.sessions_manager_requested = true;
+            }
             // `/quit` detaches and exits (the session keeps running in the daemon).
             "quit" => {
                 self.exit_requested = true;
